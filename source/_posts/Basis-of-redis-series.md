@@ -4,6 +4,8 @@ date: 2019-10-22 17:17:57
 tags: redis
 ---
 
+本文为掘金小册学习笔记    
+
 
 Redis是[**Re**mote **Di**ctionary **S**ervice]的首字母缩写，也就是「远程字典服务」
 
