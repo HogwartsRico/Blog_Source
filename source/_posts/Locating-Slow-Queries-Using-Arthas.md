@@ -28,4 +28,58 @@ tags: Java
 
 优化点比较简单，主要还是发现问题和定位问题的过程。
 
-后续写一下Arthas的各个案例。 
+
+
+# 接口慢查询定位分析
+
+![](3.png)
+
+可以看到该接口耗时2.2秒，太长了。 
+
+该接口调用了4个方法，逐个对方法进行耗时统计
+
+通过命令来对第一个方法进行统计
+
+```shell
+watch com.xxx.xxx.manager.xxx.impl.xxxManagerImpl  processAndGetTreamentScheme  '#cost>200' -x 5 
+```
+
+![](4.png)
+
+耗时0.278ms，很明显不是这个方法导致的慢查询
+
+通过这个方式一个个查看，最终发现了耗时长的方法，发现是一个全模糊查询
+
+![](5.png)
+
+
+
+```xml
+  <select id="selectByLikeNames" resultMap="BaseResultMap"  >
+    select
+    <include refid="Base_Column_List" />
+    from drug
+    where name regexp #{name}
+  </select>
+```
+
+这里name是多个，之前采用正则来实现,用程序拼装成字符串例如"张三|李四|王五",然后用mysql全模糊查。
+
+这样不合理，较合理的方法是使用ElasticSearch或使用缓存来实现。但该项目没有这2个中间件，最后改成右模糊(会用到索引)用union来实现
+
+```xml
+<select id="selectByLikeNamesUnion" resultMap="BaseResultMap" >
+    <foreach collection="names" item="name" separator="union" >
+      SELECT
+      <include refid="Base_Column_List" />
+      FROM drug
+      WHERE NAME LIKE concat(#{name},'%')  and org_code = #{orgCode}
+    </foreach>
+  </select>
+```
+
+经过优化后这个接口耗时在500ms左右。 
+
+
+
+后续写一下Arthas的各个用法。 
