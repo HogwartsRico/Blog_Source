@@ -6,7 +6,15 @@
 
         <!--Copyright-->
         <div id="copyright">
-            Copyright&nbsp;©<% if(theme.copyright_since) { %>&nbsp;<%= theme.copyright_since %>&nbsp;-<% } %><script type="text/javascript">var fd = new Date();document.write("&nbsp;" + fd.getFullYear() + "&nbsp;");</script><%- config.title %>
+            Copyright&nbsp;©&nbsp;<span year></span>&nbsp;<%- config.title %>
+            <% if(theme.footer_text) { %>
+                <br>
+                <% if(Array.isArray(theme.footer_text)) { %>
+                    <%- theme.footer_text.join('<br>') %>
+                <% } else { %>
+                    <%- theme.footer_text %>
+                <% } %>
+            <% } %>
         </div>
 
         <!-- Paradox Footer Right Section -->
@@ -22,6 +30,7 @@
         <div class="mdl-mini-footer--right-section">
             <div>
                 <div class="footer-develop-div">Powered by <a href="https://hexo.io" target="_blank" class="footer-develop-a">Hexo</a></div>
+                <div class="footer-develop-div">Theme - <a href="https://github.com/viosey/hexo-theme-material" target="_blank" class="footer-develop-a">Material</a></div>
             </div>
         </div>
     <% } %>
