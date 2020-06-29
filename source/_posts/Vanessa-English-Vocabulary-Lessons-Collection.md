@@ -1,17 +1,21 @@
 ---
-title: 20个常用短语动词
+title: Vanessa English Vocabulary Lessons 合集笔记
 date: 2020-06-24 10:05:57
 tags: Speak_English_With_Vanessa
 ---
+ 
+ 
+ 
 
+# Advanced English Vocabulary Words and PhrasalVerbs 
 
-Vocabulary  词汇 
+Vocabulary  词汇    
 
 phrasal verb 短语动词
 
 idiom 习语;成语;惯用语
 
-# 1 To Pick up 
+## 1 To Pick up 
 
 学会,染上
 
@@ -21,15 +25,13 @@ idiom 习语;成语;惯用语
 
 
 
-![](2.png) 
-
-
+My 5 year old daughter **picked up** some bad habits when she visited our neighbor's house 
 
 染上坏习惯
 
 
 
-# 2 To be a  Stretch 
+## 2 To be a  Stretch 
 
 唐突,鲁莽,不切实际,离谱,八竿子打不着
 
@@ -61,7 +63,11 @@ so you're already letting them know, i know is's a big deal , i know that this i
 
 
 
-# 3 To Mark Off
+## 3 To Mark Off
+
+标记已完成/关
+
+
 
 it means you're noting something as completed .
 
@@ -91,9 +97,9 @@ i feel satisfield when i mark  off items from my to do list
 
 
 
-# To Give Away 
+##  4 To Give Away 
 
-赠送；送出；背叛；泄露 ,透露一个秘密
+泄露 ,透露一个秘密; 赠送；送出；背叛；
 
 ![](9.png) 
 
@@ -107,7 +113,7 @@ give it away 透露
 
 
 
-# 4 To Clash With Sth
+## 5 To Clash With Sth
 
 This means that it doesn't  go with  ,  it  goes against something 
 
@@ -127,7 +133,7 @@ They clash with each other
 
 
 
-# 5 To Start Out With 
+## 6 To Start Out With 
 
 This is used when you're starting  a series  of events, So Other things are going to happen after that first event 
 
@@ -149,7 +155,7 @@ ingredients  成分;(尤指烹饪)原料;(成功的)因素，要素
 
 
 
-# 6 To Be Lame 
+## 7 To Be Lame 
 
 lame通常是指某人不能行走。 但是这个短语里面它是指**不酷，不好** 
 
@@ -167,7 +173,7 @@ Means not cool for me to do this
 
 所以如果有人和你说了一件很糗的事，很逊的事，很suck的事，你可以回复Wow,that's lame 
 
-# 7 To Go With Sth 
+## 8 To Go With Sth 
 
  chose sth 选择某事，做某事，着手干某事
 
@@ -187,7 +193,7 @@ Means not cool for me to do this
 
 
 
-# 8 To Use Up 
+## 9 To Use Up 
 
 用尽
 
@@ -197,7 +203,7 @@ This means to use something completely , nothing left
 
 
 
-# 9 To Jump Out At 
+## 10 To Jump Out At 
 
 this means it's just easy to see something  ，nothing is obvious 
 
@@ -221,7 +227,9 @@ so  it means sth on the  page is almost jumping out at you , so it's easily visi
 
 
 
-# 10 Hail Mary 
+## 11 Hail Mary 
+
+最后一次机会
 
 final desperate change 
 
@@ -237,11 +245,11 @@ Hail mary guess 你还有最后一次机会来猜
 
 Hail Mary Change 你还有最后一次机会
 
-![](21.png) 
 
 
+After she broke up with him, he sent her flowers, chocolate, and a love note as a **Hail Mary attempt** to win her back. 
 
-# A Toss -Up 
+## 12 A Toss -Up 
 
 这看起来像是个短语动词，但其实这是个名词，前面需要加一个a 
 
@@ -270,7 +278,7 @@ It is unpredictable which one is going to be chosen
 
 
 
-# Early one 
+## 13  Early one 
 
 almost the same as "early" 
 
@@ -284,7 +292,7 @@ I knew early on tht this leasson would help my vocabulary grow 我在这节课�
 
 
 
-# To Go On 
+## 14 To Go On 
 
 to happen 但是有点不一样
 
@@ -298,7 +306,9 @@ Go outside and find out what is going on
 
 
 
-# By the Seat of Your Pants 
+## 15 By the Seat of Your Pants 
+
+没有特定的计划,凭感觉试试看
 
 without a clear plan 
 
@@ -340,7 +350,9 @@ presentation 开场白，演讲  ；提交; 授予; 颁发; 出示; 提出(或�
 
 
 
-# To Be Hit or Miss
+## 16 To Be Hit or Miss
+
+不可预料
 
 to have unpredictable results 
 
@@ -352,7 +364,11 @@ The singers new songs are really **hit or miss**.  Some are amazing and some are
 
 
 
-# On the Back Burner 
+## 17 On the Back Burner 
+
+次要地位,推迟 
+
+
 
 to postpone or low priority 。 postponed 延迟;延期;展缓
 
@@ -380,7 +396,7 @@ Let's put that idea on the back burner and let's focus on this other project fir
 
 
 
-# To Be Clear Cut 
+## 18 To Be Clear Cut 
 
 This means it is completely **free from doubt** 
 
@@ -394,7 +410,7 @@ That's a pretty clear cut "no" . That means that there's no doubt the answer is 
 
 
 
-# To Throw Off 
+## 19 To Throw Off 
 
 mean's to confuse someone or something 
 
@@ -412,7 +428,7 @@ The robber **threw off** the police by putting on a disguise
 
 disguise: 假扮;装扮;伪装;掩蔽;掩饰; 伪装物;化装用具;假扮;装扮;伪装
 
-#  TO Go Over Your Head 
+##  20 TO Go Over Your Head 
 
 means that you don't understand some kind of complex idea 
 
@@ -432,10 +448,74 @@ gesture: 手势  姿势;示意动作
 
 
 
-# 视频地址
+## 视频地址
 
  https://www.youtube.com/watch?v=yKrTY4AsB2c&list=PLKWcPfZiScgDf5Wc_Y5JZS17taUi2WWgx 
 
 
 
+
+
+
+# 如何和别人开始一场对话
+
+Youtube: How-To-Start-A-Conversation-In-English-With-Anyone
+
+认识的人和不认识的人. 
+
+## 认识的人： 
+
+### 问过去
+
+**What've you been up  to** lately (last weekend / recent holiday) ?
+
+ 你最近在忙些什么? 
+
+### 问现在
+
+What do you have going  on today ? 
+
+**What've you got  going on today ?**  = what have  you got going on today 
+
+
+
+### 问将来
+
+**Do you have anything fun going on  this weekend?** 
+
+ Do you have any plans  for easter(复活节)?  Not Much , what about you ?
+
+注意这个问题在西方可能意味着你想要约ta，所以使用随意的语气，微笑，light tone 
+
+intonation 语调
+
+ 	
+
+## 不认识的人
+
+strike up 搭讪 . strike 罢工,击,打击,走向,撞,触击 
+
+遛狗：
+
+甲：Aww, what a cute dog. Do you come here often?  乙：Yeah, we try to . It's a great place to walk. 
+
+甲：Aww, what a cute dog. Have ever been here before? 乙：  Yeah , a lot . it's a great place to walk. 
+
+甲：Aww, what a cute dog.乙，yeah ,he's a  swettie. 甲：Have you been in Asheville(地名) for a while? 乙：just two years ，what about you ?
+
+甲：Aww, what a cute dog. do you live nearby? 
+
+ 
+
+有时候别人不回答你，不要丧气，也许他们并不是个好的conversationalist. try you beat. 
+
+
+
+需要和别人有一些练习，使用英语。
+
+practice and practice and repetition is what's going to help you to really imorove  that skill. 
+
+Simile is the best tool 
+
+Sometimes when we feel nervous, our face gets really serious and we forget to simle. But something happens when you smile, you start to loosen up ,you start to feel  little more comfortable, and maybe you'll be able to remember some  of the sentences and quesions that we talked about . 
 
