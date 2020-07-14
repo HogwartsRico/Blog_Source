@@ -5,21 +5,6 @@ tags: Java
 ---
 
 
-
-整理和总结了一下大家常遇到的问题：
-
-    1.  客户端socket发送消息后，为什么服务端socket没有收到？
-    
-    2.  使用while 循环实现连续输入，是不是就是多线程模式？
-    
-    3.  对多线程处理机制不是很明白，希望详细讲解？
-    
-    4.  希望详细讲解ServerSocketChannel和SocketChannel与ServerSoket和Socket的区别？
-    
-    5.  希望有详细的例子，可以直接拷贝下来运行？
-
-
-
 # 一：socket通信基本原理。
 
 首先socket 通信是基于TCP/IP 网络层上的一种传送方式，我们通常把TCP和UDP称为传输层。

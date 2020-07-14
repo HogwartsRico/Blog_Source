@@ -27,7 +27,8 @@ tags: 算法
 
 网上A星算法可视化的比较多 推荐2个Demo  
 
-[阿姆斯特丹路网--A*寻路Demo](https://anvaka.github.io/ngraph.path.demo/#?graph=amsterdam-roads)   [源码](https://github.com/anvaka/ngraph.path)  
+[阿姆斯特丹路网--A*寻路Demo](https://anvaka.github.io/ngraph.path.demo/#?graph=amsterdam-roads)   
+ [源码](https://github.com/anvaka/ngraph.path)  
 
 ![](1.png)
 
@@ -39,7 +40,8 @@ tags: 算法
 
 第二个Demo对于理解A星算法有很大帮助 
 
-[PathFinding.js/visual](http://qiao.github.io/PathFinding.js/visual/)  [源码](https://github.com/qiao/PathFinding.js) 
+[PathFinding.js/visual](http://qiao.github.io/PathFinding.js/visual/)   
+[源码](https://github.com/qiao/PathFinding.js) 
 
 
 
@@ -54,6 +56,10 @@ tags: 算法
 
 
 
+
+再补一个3D的A*可视化网站： https://www.hightopo.com/demo/astar/astar.html  [源码](https://github.com/bgrins/javascript-astar)   
+
+2D https://briangrinstead.com/files/astar/  
 
 
 
