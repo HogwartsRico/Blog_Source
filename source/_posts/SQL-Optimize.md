@@ -2,7 +2,8 @@
 title: SQL优化及其他
 date: 2020-07-14 17:07:54
 tags: MYSQ
----
+--- 
+
 
 SQL优化的一般策略：索引优化，sql改写，参数优化，优化器 
 
@@ -468,7 +469,203 @@ select * from table_name inner join ( select id from table_name where (user = xx
 
 
 
+# mysql 5.7 中order by 和GROUP BY 一起使用 order by 不生效
+
+在mysql5.7中，
+如果先使用order by 对实例降序然后在使用GROUP BY查询，查询的结果还是正常的升序。
+例如
+
+`select *from (select* from zz.tables_a order by id desc) AS T GROUP BY T.ID;` 显示不正常 
+
+解决方法：在order by 子句 添加 limit 可以正常显示
+
+例如 
+
+`select *from (select* from zz.tables_a order by id desc limit 100 ) AS T GROUP BY T.ID; ` 
+
+这个会正常显示 
+
+原因是如果不加limit，系统会把order by优化掉。
+
+
+
+MYSQL官方说明：  https://dev.mysql.com/doc/refman/8.0/en/semijoins.html 
+
+
+
+# 前缀索引
+
+在工作中，遇到一个慢SQL，经查看，发现是一个单表查询，右模糊，那个字段是个varchar类型，长度1000。
+
+那个字段没有索引，所以很慢。 
+
+其实合理的方式是接入搜索（例如ES,Lucene,Solr等),但是如何马上解决这个问题且用最小的工作量呢？
+
+如果给这个字段建索引，那索引也太大了，因为这个字段有1000的长度。 一般varchar超过64就不建议建索引
+
+此时可以使用**前缀索引**
+
+比如，这两个在 email 字段上创建索引的语句：
+
+```
+mysql> alter table SUser add index index1(email);
+或
+mysql> alter table SUser add index index2(email(6));
+```
+
+
+第一个语句创建的 index1 索引里面，包含了每个记录的整个字符串；而第二个语句创建的 index2 索引里面，对于每个记录都是只取前 6 个字节。
+
+那么，这两种不同的定义在数据结构和存储上有什么区别呢？
+
+
+
+优点： 所以占用的空间会更小，这就是使用前缀索引的优势。
+
+但，这同时带来的损失是，如果重合率较高，可能会增加额外的记录扫描次数。
+
+
+
+接下来，我们再看看下面这个语句，在这两个索引定义下分别是怎么执行的。
+
+`select id,name,email from SUser where email='zhangssxyz@xxx.com';`
+
+如果使用的是 index1（即 email 整个字符串的索引结构），执行顺序是这样的：
+
+从 index1 索引树找到满足索引值是’zhangssxyz@xxx.com’的这条记录，取得 ID2 的值；
+到主键上查到主键值是 ID2 的行，判断 email 的值是正确的，将这行记录加入结果集；
+取 index1 索引树上刚刚查到的位置的下一条记录，发现已经不满足 email='zhangssxyz@xxx.com’的条件了，循环结束。
+这个过程中，只需要回主键索引取一次数据，所以系统认为只扫描了一行。 
+
+
+
+如果使用的是 index2（即 email(6) 索引结构），执行顺序是这样的：
+
+从 index2 索引树找到满足索引值是’zhangs’的记录，找到的第一个是 ID1；
+到主键上查到主键值是 ID1 的行，判断出 email 的值不是’zhangssxyz@xxx.com’，这行记录丢弃；
+取 index2 上刚刚查到的位置的下一条记录，发现仍然是’zhangs’，取出 ID2，再到 ID 索引上取整行然后判断，这次值对了，将这行记录加入结果集；
+重复上一步，直到在 idxe2 上取到的值不是’zhangs’时，循环结束。
+在这个过程中，要回主键索引取 4 次数据，也就是扫描了 4 行。 
+
+
+
+但是，对于这个查询语句来说，如果你定义的 index2 不是 email(6) 而是 email(7），也就是说取 email 字段的前 7 个字节来构建索引的话，即满足前缀’zhangss’的记录只有一个，也能够直接查到 ID2，只扫描一行就结束了。
+
+也就是说使用前缀索引，定义好长度，就可以做到既节省空间，又不用额外增加太多的查询成本。
+
+当要给字符串创建前缀索引时，有什么方法能够确定我应该使用多长的前缀呢？
+
+实际上，我们在建立索引时关注的是区分度，区分度越高越好。因为区分度越高，意味着重复的键值越少。因此，我们可以通过统计索引上有多少个不同的值来判断要使用多长的前缀。 
+
+
+
+你可以使用下面这个语句，算出这个列上有多少个不同的值：
+
+`mysql> select count(distinct email) as L from SUser;`  
+然后，依次选取不同长度的前缀来看这个值，比如我们要看一下 4~7 个字节的前缀索引，可以用这个语句：
+
+```shell
+mysql> select 
+  count(distinct left(email,4)）as L4,
+  count(distinct left(email,5)）as L5,
+  count(distinct left(email,6)）as L6,
+  count(distinct left(email,7)）as L7,
+from SUser;
+```
+
+
+
+
+
+当然，使用前缀索引很可能会损失区分度，所以你需要预先设定一个可以接受的损失比例，比如 5%。然后，在返回的 L4~L7 中，找出不小于 L * 95% 的值，假设这里 L6、L7 都满足，你就可以选择前缀长度为 6。
+
+
+
+
+
+## 前缀索引对覆盖索引的影响
+你先来看看这个 SQL 语句：
+
+`select id,email from SUser where email='zhangssxyz@xxx.com';` 
+相比，这个语句只要求返回 id 和 email 字段。
+
+所以，如果使用 index1（即 email 整个字符串的索引结构）的话，可以利用覆盖索引，从 index1 查到结果后直接就返回了，不需要回到 ID 索引再去查一次。**而如果使用 index2（即 email(6) 索引结构）的话，就不得不回到 ID 索引再去判断 email 字段的值**  
+
+
+
+**即使你将 index2 的定义修改为 email(18) 的前缀索引，这时候虽然 index2 已经包含了所有的信息，但 InnoDB 还是要回到 id 索引再查一下，因为系统并不确定前缀索引的定义是否截断了完整信息。** 
+
+## 其他方式
+
+对于类似于邮箱这样的字段来说，使用前缀索引的效果可能还不错。但是，遇到前缀的区分度不够好的情况时，我们要怎么办呢？
+
+假设你维护的数据库是一个市的公民信息系统，这时候如果对身份证号做长度为 6 的前缀索引的话，这个索引的区分度就非常低了。
+
+按照我们前面说的方法，可能你需要创建长度为 12 以上的前缀索引，才能够满足区分度要求。
+
+但是，索引选取的越长，占用的磁盘空间就越大，相同的数据页能放下的索引值就越少，搜索的效率也就会越低。
+
+### 倒叙存储
+
+**第一种方式是使用倒序存储**。如果你存储身份证号的时候把它倒过来存，每次查询的时候，你可以这么写：
+
+`mysql> select field_list from t where id_card = reverse('input_id_card_string')` 
+由于身份证号的最后 6 位没有地址码这样的重复逻辑，所以最后这 6 位很可能就提供了足够的区分度。当然了，实践中你不要忘记使用 count(distinct) 方法去做个验证。
+
+### hash字段
+
+第二种方式是使用 hash 字段。你可以在表上再创建一个整数字段，来保存身份证的校验码，同时在这个字段上创建索引。
+
+`mysql> alter table t add id_card_crc int unsigned, add index(id_card_crc);`
+
+然后每次插入新记录的时候，都同时用 crc32() 这个函数得到校验码填到这个新字段。由于校验码可能存在冲突，也就是说两个不同的身份证号通过 crc32() 函数得到的结果可能是相同的，所以你的查询语句 where 部分要判断 id_card 的值是否精确相同。
+
+` mysql> select field_list from t where id_card_crc=crc32('input_id_card_string') and id_card='input_id_card_string' 
+ `			 
+
+
+
+这样，索引的长度变成了 4 个字节，比原来小了很多。
+
+接下来，我们再一起看看使用倒序存储和使用 hash 字段这两种方法的异同点。
+
+首先，它们的相同点是，都不支持范围查询。倒序存储的字段上创建的索引是按照倒序字符串的方式排序的，已经没有办法利用索引方式查出身份证号码在[ID_X, ID_Y]的所有市民了。同样地，hash 字段的方式也只能支持等值查询。
+
+它们的区别，主要体现在以下三个方面：
+
+从占用的额外空间来看，倒序存储方式在主键索引上，不会消耗额外的存储空间，而 hash 字段方法需要增加一个字段。当然，倒序存储方式使用 4 个字节的前缀长度应该是不够的，如果再长一点，这个消耗跟额外这个 hash 字段也差不多抵消了。
+在 CPU 消耗方面，倒序方式每次写和读的时候，都需要额外调用一次 reverse 函数，而 hash 字段的方式需要额外调用一次 crc32() 函数。如果只从这两个函数的计算复杂度来看的话，reverse 函数额外消耗的 CPU 资源会更小些。
+从查询效率上看，使用 hash 字段方式的查询性能相对更稳定一些。因为 crc32 算出来的值虽然有冲突的概率，但是概率非常小，可以认为每次查询的平均扫描行数接近 1。而倒序存储方式毕竟还是用的前缀索引的方式，也就是说还是会增加扫描行数。小结
+
+
+
+char 和 varchar 可以设置长度，这个长度是干什么的，对于不同字符集又有什么影响？一直看到不同的解释，恳请老师专业的解释一下
+
+char（N）表示“最长存N，但是如果字符串小于N，用空格补到N”
+
+varchar（N）表示“最长存N，如果字符串小于N，按照实际长度来存”
+
+
+
+
+
+# 关于最左匹配原则
+
+比如我建的索引是(name,cid)。而我查询的语句是cid=1 AND name='小红'; 我是先查询cid，再查询name的，不是先从最左面查的呀？
+
+好吧，我再解释一下这个问题：首先可以肯定的是把条件判断反过来变成这样 name='小红' and cid=1; 最后所查询的结果是一样的。
+那么问题产生了？既然结果是一样的，到底以何种顺序的查询方式最好呢？
+
+**所以**，而此时那就是我们的mysql查询优化器该登场了，mysql查询优化器会判断纠正这条sql语句该以什么样的顺序执行效率最高，最后才生成真正的执行计划。所以，当然是我们能尽量的利用到索引时的查询顺序效率最高咯，所以mysql查询优化器会最终以这种顺序进行查询执行。 
+
+
+
 # 扩展阅读
 
- https://www.cnblogs.com/weixiaotao/p/10646666.html 
+ https://www.cnblogs.com/weixiaotao/p/10646666.html   
+
+ https://dev.mysql.com/doc/refman/8.0/en/semijoins.html   
+
+ https://dev.mysql.com/doc/refman/5.7/en/limit-optimization.html   
+
 
