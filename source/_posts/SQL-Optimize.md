@@ -1,8 +1,8 @@
 ---
 title: SQL优化及其他
 date: 2020-07-14 17:07:54
-tags: MYSQ
---- 
+tags: MYSQL
+---
 
 
 SQL优化的一般策略：索引优化，sql改写，参数优化，优化器 
