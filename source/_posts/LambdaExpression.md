@@ -1,5 +1,0 @@
----
-title: LambdaExpression
-date: 2019-10-17 19:51:15
-tags:
----
