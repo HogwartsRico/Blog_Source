@@ -8,6 +8,7 @@ tags: Netty
 
 
 
+
  https://netty.io/wiki/user-guide-for-4.x.html 
 
 # IM系统简介
@@ -750,7 +751,7 @@ public class FirstClientHandler extends ChannelInboundHandlerAdapter {
         ByteBuf buffer = ctx.alloc().buffer();
         
         // 2. 准备数据，指定字符串的字符集为 utf-8
-        byte[] bytes = "你好，闪电侠!".getBytes(Charset.forName("utf-8"));
+        byte[] bytes = "你好，Rico!".getBytes(Charset.forName("utf-8"));
 
         // 3. 填充数据到 ByteBuf
         buffer.writeBytes(bytes);
@@ -806,11 +807,11 @@ public class FirstServerHandler extends ChannelInboundHandlerAdapter {
 
 
 
-服务端侧的逻辑处理器同样继承自 `ChannelInboundHandlerAdapter`，与客户端不同的是，这里覆盖的方法是 `channelRead()`，这个方法在接收到客户端发来的数据之后被回调。
+服务端侧的逻辑处理器同样继承自 `ChannelInboundHandlerAdapter`，与客户端不同的是，这里覆盖的方法是 `channelRead()`，**这个方法在接收到客户端发来的数据之后被回调**。
 
 这里的 `msg` 参数指的就是 Netty 里面数据读写的载体，为什么这里不直接是 `ByteBuf`，而需要我们强转一下，我们后面会分析到。这里我们强转之后，然后调用 `byteBuf.toString()` 就能够拿到我们客户端发过来的字符串数据。
 
-我们先运行服务端，再运行客户端，下面分别是服务端控制台和客户端控制台的输出
+我们先运行服务端，再运行客户端 
 
 
 
@@ -832,7 +833,7 @@ public class FirstServerHandler extends ChannelInboundHandlerAdapter {
     }
 
     private ByteBuf getByteBuf(ChannelHandlerContext ctx) {
-        byte[] bytes = "你好，欢迎关注我的微信公众号，《闪电侠的博客》!".getBytes(Charset.forName("utf-8"));
+        byte[] bytes = "你好，欢迎关注我!".getBytes(Charset.forName("utf-8"));
 
         ByteBuf buffer = ctx.alloc().buffer();
 
@@ -863,7 +864,7 @@ public class FirstClientHandler extends ChannelInboundHandlerAdapter {
 
 
 
-将这段逻辑添加到客户端之后逻辑处理器 `FirstClientHandler` 之后，客户端就能收到服务端发来的数据，完整的代码参考 [GitHub](https://github.com/lightningMan/flash-netty/tree/客户端与服务端双向通信)
+将这段逻辑添加到客户端之后逻辑处理器 `FirstClientHandler` 之后，客户端就能收到服务端发来的数据
 
 客户端与服务端的读写数据的逻辑完成之后，我们先运行服务端，再运行客户端，控制台输出如下 
 
@@ -872,6 +873,141 @@ public class FirstClientHandler extends ChannelInboundHandlerAdapter {
 
 
 ![](7.png) 
+
+
+
+完整代码NettyServer.java,FirstServerHandler; NettyClient.java ,FirstClientHandler.java
+
+NettyServer.java
+
+```java
+public static void main(String[] args) {
+        /**
+         * 我们创建了两个NioEventLoopGroup，这两个对象可以看做是传统IO编程模型的两大线程组
+         * bossGroup表示监听端口，accept 新连接的线程组
+         * workerGroup表示处理每一条连接的数据读写的线程组
+         */
+        NioEventLoopGroup boss = new NioEventLoopGroup();
+        NioEventLoopGroup worker = new NioEventLoopGroup();
+
+        //创建一个引导类 ServerBootstrap，这个类将引导我们进行服务端的启动工作
+        ServerBootstrap serverBootstrap = new ServerBootstrap();
+        serverBootstrap
+                //通过.group(bossGroup, workerGroup)给引导类配置两大线程组，这个引导类的线程模型也就定型了。
+                .group(boss, worker)
+                //然后，我们指定我们服务端的 IO 模型为NIO，我们通过.channel(NioServerSocketChannel.class)来指定 IO 模型，当然，这里也有其他的选择，如果你想指定 IO 模型为 BIO，那么这里配置上OioServerSocketChannel.class类型即可，当然通常我们也不会这么做，因为Netty的优势就在于NIO。
+                .channel(NioServerSocketChannel.class)
+                //我们调用childHandler()方法，给这个引导类创建一个ChannelInitializer，这里主要就是定义后续每条连接的数据读写
+                //ChannelInitializer这个类中，我们注意到有一个泛型参数NioSocketChannel，这个类呢，就是 Netty 对 NIO 类型的连接的抽象，而我们前面NioServerSocketChannel也是对 NIO 类型的连接的抽象，NioServerSocketChannel和NioSocketChannel的概念可以和 BIO 编程模型中的ServerSocket以及Socket两个概念对应上
+                .childHandler(new ChannelInitializer<NioSocketChannel>() {
+                    protected void initChannel(NioSocketChannel ch) {
+                        ch.pipeline().addLast(new FirstServerHandler());
+                    }
+                });
+        serverBootstrap.bind(8000);
+        /**
+         * 我们的最小化参数配置到这里就完成了
+         * 总结一下，要启动一个Netty服务端，必须要指定三类属性，分别是线程模型、IO 模型、连接读写处理逻辑.
+         * 有了这三者，之后在调用bind(8000)，我们就可以在本地绑定一个 8000 端口启动起来
+         */
+    }
+```
+
+FirstServerHandler.java
+
+```java
+public class FirstServerHandler extends ChannelInboundHandlerAdapter {
+    //服务端侧的逻辑处理器同样继承自ChannelInboundHandlerAdapter,
+    //与客户端不同的是，这里覆盖的方法是channelRead()，这个方法在接收到客户端发来的数据之后被回调。
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        //接受客户端数据
+        ByteBuf byteBuf = (ByteBuf) msg;
+        System.out.println(new Date() + ": 服务端接收到数据 -> " + byteBuf.toString(Charset.forName("utf-8")));
+        //回复数据到客户端
+        System.out.println(new Date() + ": 服务端写出数据");
+        ByteBuf out = getByteBuf(ctx);
+        ctx.channel().writeAndFlush(out);
+    }
+
+    private ByteBuf getByteBuf(ChannelHandlerContext ctx) {
+        byte[] bytes = "你好，客户端,我是服务端!".getBytes(Charset.forName("utf-8"));
+        ByteBuf buffer = ctx.alloc().buffer();
+        buffer.writeBytes(bytes);
+        return buffer;
+    }
+}
+```
+
+NettyClient.java
+
+```java
+ public static void main(String[] args) throws InterruptedException {
+        //客户端启动的引导类是 Bootstrap，负责启动客户端以及连接服务端，而上一小节我们在描述服务端的启动的时候，这个辅导类是 ServerBootstrap
+        Bootstrap bootstrap = new Bootstrap();//服务端是ServerBootstrap,客户端时Bootstrap
+        NioEventLoopGroup group = new NioEventLoopGroup();
+
+        bootstrap
+                // 1.指定线程模型
+                .group(group)
+                // 2.指定 IO 类型为 NIO
+                .channel(NioSocketChannel.class)
+                //给引导类指定一个 handler，这里主要就是定义连接的业务处理逻辑
+                .handler(new ChannelInitializer<Channel>() {
+                    @Override
+                    protected void initChannel(Channel ch) {
+                        ch.pipeline().addLast(new FirstClientHandler());//客户端连接建立成功之后，会调用channelActive()这个方法
+                    }
+                });
+        // // 4.建立连接
+        //配置完线程模型、IO 模型、业务处理逻辑之后，调用 connect 方法进行连接，可以看到 connect 方法有两个参数，第一个参数可以填写 IP 或者域名，第二个参数填写的是端口号，由于 connect 方法返回的是一个 Future，也就是说这个方是异步的，我们通过 addListener 方法可以监听到连接是否成功，进而打印出连接信息
+        Channel channel = bootstrap.connect("127.0.0.1", 8000).addListener(future -> {
+            //connect 方法返回的是一个 Future，也就是说这个方是异步的，我们通过 addListener 方法可以监听到连接是否成功，进而打印出连接信息
+            if (future.isSuccess()) {
+                System.out.println("连接成功!");
+            } else {
+                System.err.println("连接失败!");
+            }
+        }).channel();
+    }
+```
+
+FirstClientHandlerj.java
+
+```java
+public class FirstClientHandler extends ChannelInboundHandlerAdapter {
+
+    //客户端连接建立成功之后，会调用channelActive()这个方法
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        System.out.println(new Date() + ": 客户端写出数据");
+        // 1. 获取数据
+        ByteBuf buffer = getByteBuf(ctx);
+        // 2. 写数据
+        ctx.channel().writeAndFlush(buffer);
+    }
+
+    @Override
+    //接受数据
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        ByteBuf byteBuf = (ByteBuf) msg;
+        System.out.println(new Date() + ": 客户端读到数据 -> " + byteBuf.toString(Charset.forName("utf-8")));
+    }
+
+    private ByteBuf getByteBuf(ChannelHandlerContext ctx) {
+        // 1. 获取二进制抽象 ByteBuf
+        ByteBuf buffer = ctx.alloc().buffer();
+        // 2. 准备数据，指定字符串的字符集为 utf-8
+        byte[] bytes = "你好，服务端,我是客户端!".getBytes(Charset.forName("utf-8"));
+        // 3. 填充数据到 ByteBuf
+        buffer.writeBytes(bytes);
+        return buffer;
+    }
+```
+
+
+
+
 
 到这里，我们本小节要实现的客户端与服务端双向通信的功能实现完毕，最后，我们对本小节做一个总结。
 
@@ -939,7 +1075,7 @@ writableBytes() 表示 ByteBuf 当前可写的字节数，它的值等于 capaci
 
 前者表示把当前的读指针保存起来，后者表示把当前的读指针恢复到之前保存的值，下面两段代码是等价的
 
-```
+```java
 // 代码片段1
 int readerIndex = buffer.readerIndex();
 // .. 其他操作
@@ -1517,7 +1653,7 @@ public Packet decode(ByteBuf byteBuf) {
 
 接下来，我们分别实现一下上述四个过程，开始之前，我们先来回顾一下客户端与服务端的启动流程，客户端启动的时候，我们会在引导类 `Bootstrap` 中配置客户端的处理逻辑，本小节中，我们给客户端配置的逻辑处理器叫做 `ClientHandler`
 
-```
+```java
 public class ClientHandler extends ChannelInboundHandlerAdapter {
 }
 ```
@@ -1535,7 +1671,11 @@ public class ClientHandler extends ChannelInboundHandlerAdapter {
 
 这样，在客户端侧，Netty 中 IO 事件相关的回调就能够回调到我们的 `ClientHandler`。
 
-同样，我们给服务端引导类 `ServerBootstrap` 也配置一个逻辑处理器 `ServerHandler`
+同样，我们给服务端引导类 `ServerBootstrap` 也配置一个逻辑处理器 `ServerHandler` 
+
+就像我们上几节说的： 
+
+**继承ChannelInboundHandlerAdapter，然后覆盖了 channelActive()方法 ，这个方法会在客户端连接建立成功之后被调用，覆盖channelRead()，这个方法在接收到客户端发来的数据之后被回调**。 
 
 ```java
 public class ServerHandler extends ChannelInboundHandlerAdapter {
@@ -1696,7 +1836,7 @@ public void channelRead(ChannelHandlerContext ctx, Object msg) {
 
 首先，我们来定义一下客户端与服务端的收发消息对象，我们把客户端发送至服务端的消息对象定义为 `MessageRequestPacket`。
 
-```
+```java
 @Data
 public class MessageRequestPacket extends Packet {
 
@@ -1713,7 +1853,7 @@ public class MessageRequestPacket extends Packet {
 
 我们把服务端发送至客户端的消息对象定义为 `MessageResponsePacket`
 
-```
+```java
 @Data
 public class MessageResponsePacket extends Packet {
 
@@ -1721,7 +1861,6 @@ public class MessageResponsePacket extends Packet {
 
     @Override
     public Byte getCommand() {
-
         return MESSAGE_RESPONSE;
     }
 }
@@ -1731,28 +1870,28 @@ public class MessageResponsePacket extends Packet {
 
 至此，我们的指令已经有如下四种
 
-```
+```java
 public interface Command {
 
-    Byte LOGIN_REQUEST = 1;
+    Byte LOGIN_REQUEST = 1;//登录请求
 
-    Byte LOGIN_RESPONSE = 2;
+    Byte LOGIN_RESPONSE = 2;//登录返回
 
-    Byte MESSAGE_REQUEST = 3;
+    Byte MESSAGE_REQUEST = 3;//消息请求
 
-    Byte MESSAGE_RESPONSE = 4;
+    Byte MESSAGE_RESPONSE = 4;//消息返回
 }
 ```
 
 ## 判断客户端是否登录成功
 
-在[前面一小节](https://juejin.im/book/5b4bc28bf265da0f60130116/section/5b4db04be51d45191556ee9c)，我们在文末出了一道思考题：如何判断客户端是否已经登录？
+在前面一小节，我们在文末出了一道思考题：如何判断客户端是否已经登录？
 
-在[客户端启动流程](https://juejin.im/book/5b4bc28bf265da0f60130116/section/5b4dafd4f265da0f98314cc7)这一章节，我们有提到可以给客户端连接，也就是 Channel 绑定属性，通过 `channel.attr(xxx).set(xx)` 的方式，那么我们是否可以在登录成功之后，给 Channel 绑定一个登录成功的标志位，然后判断是否登录成功的时候取出这个标志位就可以了呢？答案是肯定的
+在客户端启动流程这一章节，我们有提到可以给客户端连接，也就是 Channel 绑定属性，通过 `channel.attr(xxx).set(xx)` 的方式，那么我们是否可以在登录成功之后，给 Channel 绑定一个登录成功的标志位，然后判断是否登录成功的时候取出这个标志位就可以了呢？答案是肯定的
 
 我们先来定义一下是否登录成功的标志位
 
-```
+```java
 public interface Attributes {
     AttributeKey<Boolean> LOGIN = AttributeKey.newInstance("login");
 }
@@ -1762,11 +1901,11 @@ public interface Attributes {
 
 > ClientHandler.java
 
-```
+```java
 public void channelRead(ChannelHandlerContext ctx, Object msg) {
     // ...
         if (loginResponsePacket.isSuccess()) {
-            LoginUtil.markAsLogin(ctx.channel());
+            LoginUtil.markAsLogin(ctx.channel());//标记客户端已登录
             System.out.println(new Date() + ": 客户端登录成功");
         } else {
             System.out.println(new Date() + ": 客户端登录失败，原因：" + loginResponsePacket.getReason());
@@ -1777,21 +1916,26 @@ public void channelRead(ChannelHandlerContext ctx, Object msg) {
 
 这里，我们省去了非关键代码部分
 
-```
+```java
 public class LoginUtil {
-    public static void markAsLogin(Channel channel) {
+    public static void markAsLogin(Channel channel) {//标记已登录
         channel.attr(Attributes.LOGIN).set(true);
     }
 
-    public static boolean hasLogin(Channel channel) {
+    public static boolean hasLogin(Channel channel) {//校验是否登录
         Attribute<Boolean> loginAttr = channel.attr(Attributes.LOGIN);
-
         return loginAttr.get() != null;
     }
 }
 ```
 
-如上所示，我们抽取出 `LoginUtil` 用于设置登录标志位以及判断是否有标志位，如果有标志位，不管标志位的值是什么，都表示已经成功登录过，接下来，我们来实现控制台输入消息并发送至服务端。
+如上所示，我们抽取出 `LoginUtil` 用于设置登录标志位以及判断是否有标志位，如果有标志位，不管标志位的值是什么，都表示已经成功登录过
+
+![](24.png) 
+
+
+
+接下来，我们来实现控制台输入消息并发送至服务端。
 
 ## 控制台输入消息并发送
 
@@ -1799,7 +1943,7 @@ public class LoginUtil {
 
 > NettyClient.java
 
-```
+```java
 private static void connect(Bootstrap bootstrap, String host, int port, int retry) {
     bootstrap.connect(host, port).addListener(future -> {
         if (future.isSuccess()) {
@@ -1837,7 +1981,7 @@ private static void startConsoleThread(Channel channel) {
 
 > ServerHandler.java
 
-```
+```java
 public void channelRead(ChannelHandlerContext ctx, Object msg) {
     ByteBuf requestByteBuf = (ByteBuf) msg;
 
@@ -1866,7 +2010,7 @@ public void channelRead(ChannelHandlerContext ctx, Object msg) {
 
 > ClientHandler.java
 
-```
+```java
 public void channelRead(ChannelHandlerContext ctx, Object msg) {
     ByteBuf byteBuf = (ByteBuf) msg;
 
@@ -1908,6 +2052,12 @@ public void channelRead(ChannelHandlerContext ctx, Object msg) {
 
 随着我们实现的指令越来越多，如何避免 `channelRead()` 中对指令处理的 `if else` 泛滥？ 
 
+## 问答
+
+ mark时，看到客户端已经mark了，但是服务端loginAttr.get() != null；中loginAttr总是空 
+
+这个attr都是独立的，不共享，也就是客户端是客户端的，服务端是服务端的，这里代码写在一起会有点歧义，实际应该是服务端在一台服务器，客户端在另外的设备上，这样你在想就能想通了，客户端设置的服务端肯定是看不见的（如果没有做特殊处理的话） 
+
 # pipeline 与 channelHandler
 
 > 这一小节，我们将会学习 Netty 里面一大核心组件： Pipeline 与 ChannelHandler
@@ -1928,35 +2078,2618 @@ Netty 中的 pipeline 和 channelHandler 正是用来解决这个问题的：它
 
 ## pipeline 与 channelHandler 的构成
 
+![](18.png) 
 
 
 
+无论是从服务端来看，还是客户端来看，在 Netty 整个框架里面，一条连接对应着一个 Channel，这条 Channel 所有的处理逻辑都在一个叫做 `ChannelPipeline` 的对象里面，`ChannelPipeline` 是一个双向链表结构，他和 Channel 之间是一对一的关系。
+
+`ChannelPipeline` 里面每个节点都是一个 `ChannelHandlerContext` 对象，这个对象能够拿到和 Channel 相关的所有的上下文信息，然后这个对象包着一个重要的对象，那就是逻辑处理器 `ChannelHandler`。
+
+接下来，我们再来看一下 `ChannelHandler` 有哪些分类。
+
+![](19.png) 
 
 
 
+可以看到 `ChannelHandler` 有两大子接口：
+
+第一个子接口是 `ChannelInboundHandler`，从字面意思也可以猜到，**他是处理读数据的逻辑**，比如，我们在一端读到一段数据，首先要解析这段数据，然后对这些数据做一系列逻辑处理，最终把响应写到对端， 在开始组装响应之前的所有的逻辑，都可以放置在 `ChannelInboundHandler` 里处理，它的一个最重要的方法就是 `channelRead()`。读者可以将 `ChannelInboundHandler` 的逻辑处理过程与 TCP 的七层协议的解析联系起来，收到的数据一层层从物理层上升到我们的应用层。
+
+第二个子接口 `ChannelOutBoundHandler` 是**处理写数据的逻辑**，它是定义我们一端在组装完响应之后，把数据写到对端的逻辑，比如，我们封装好一个 response 对象，接下来我们有可能对这个 response 做一些其他的特殊逻辑，然后，再编码成 ByteBuf，最终写到对端，它里面最核心的一个方法就是 `write()`，读者可以将 `ChannelOutBoundHandler` 的逻辑处理过程与 TCP 的七层协议的封装过程联系起来，我们在应用层组装响应之后，通过层层协议的封装，直到最底层的物理层。
+
+这两个子接口分别有对应的默认实现，`ChannelInboundHandlerAdapter`，和 `ChanneloutBoundHandlerAdapter`，它们分别实现了两大接口的所有功能，默认情况下会把读写事件传播到下一个 handler。
+
+我们上面几节已经用到了**ChannelInboundHandlerAdapter** , 例子中的ServerHandler和ClientHandler都继承了ChannelInboundHandlerAdapter来进行消息的读取
+
+说了这么多的理论，其实还是比较抽象的，下面我们就用一个具体的 demo 来学习一下这两大 handler 的事件传播机制。
 
 
 
+## ChannelInboundHandler 的事件传播
+
+关于 `ChannelInboundHandler` ，我们拿 `channelRead()` 为例子，来体验一下 inbound 事件的传播。
+
+我们在服务端的 pipeline 添加三个 `ChannelInboundHandler`  
+
+ NettyServer.java 
+
+```java
+  public static void main(String[] args) {
+        /**
+         * 我们创建了两个NioEventLoopGroup，这两个对象可以看做是传统IO编程模型的两大线程组
+         * bossGroup表示监听端口，accept 新连接的线程组
+         * workerGroup表示处理每一条连接的数据读写的线程组
+         */
+        NioEventLoopGroup boss = new NioEventLoopGroup();
+        NioEventLoopGroup worker = new NioEventLoopGroup();
+
+        //创建一个引导类 ServerBootstrap，这个类将引导我们进行服务端的启动工作
+        ServerBootstrap serverBootstrap = new ServerBootstrap();
+        serverBootstrap
+                //通过.group(bossGroup, workerGroup)给引导类配置两大线程组，这个引导类的线程模型也就定型了。
+                .group(boss, worker)
+                //然后，我们指定我们服务端的 IO 模型为NIO，我们通过.channel(NioServerSocketChannel.class)来指定 IO 模型，当然，这里也有其他的选择，如果你想指定 IO 模型为 BIO，那么这里配置上OioServerSocketChannel.class类型即可，当然通常我们也不会这么做，因为Netty的优势就在于NIO。
+                .channel(NioServerSocketChannel.class)
+                //我们调用childHandler()方法，给这个引导类创建一个ChannelInitializer，这里主要就是定义后续每条连接的数据读写
+                //ChannelInitializer这个类中，我们注意到有一个泛型参数NioSocketChannel，这个类呢，就是 Netty 对 NIO 类型的连接的抽象，而我们前面NioServerSocketChannel也是对 NIO 类型的连接的抽象，NioServerSocketChannel和NioSocketChannel的概念可以和 BIO 编程模型中的ServerSocket以及Socket两个概念对应上
+                .childHandler(new ChannelInitializer<NioSocketChannel>() {
+                    protected void initChannel(NioSocketChannel ch) {
+                        // inBound，处理读数据的逻辑链
+                        ch.pipeline().addLast(new InBoundHandlerA());
+                        ch.pipeline().addLast(new InBoundHandlerB());
+                        ch.pipeline().addLast(new InBoundHandlerC());
+                    }
+                });
+        serverBootstrap.bind(8000);
+        /**
+         * 我们的最小化参数配置到这里就完成了
+         * 总结一下，要启动一个Netty服务端，必须要指定三类属性，分别是线程模型、IO 模型、连接读写处理逻辑.
+         * 有了这三者，之后在调用bind(8000)，我们就可以在本地绑定一个 8000 端口启动起来
+         */
+    }
+```
 
 
 
+ 每个 inBoundHandler 都继承自 `ChannelInboundHandlerAdapter`，然后实现了 `channelRead()` 方法 
+
+```java
+public class InBoundHandlerA extends ChannelInboundHandlerAdapter {//处理读数据的逻辑
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("InBoundHandlerA: " + msg);
+        super.channelRead(ctx, msg);
+    }
+}
+
+public class InBoundHandlerB extends ChannelInboundHandlerAdapter {//处理读数据的逻辑
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("InBoundHandlerB: " + msg);
+        super.channelRead(ctx, msg);
+    }
+}
+
+public class InBoundHandlerC extends ChannelInboundHandlerAdapter {//处理读数据的逻辑
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("InBoundHandlerC: " + msg);
+        super.channelRead(ctx, msg);
+    }
+}
+```
+
+在 `channelRead()` 方法里面，我们打印当前 handler 的信息，然后调用父类的 `channelRead()` 方法，而这里父类的 `channelRead()` 方法**会自动调用到下一个** inBoundHandler 的 `channelRead()` 方法，**并且会把当前 inBoundHandler 里处理完毕的对象传递到下一个 inBoundHandler**，我们例子中传递的对象都是同一个 msg。
+
+我们通过 `addLast()` 方法来为 pipeline 添加 inBoundHandler，当然，除了这个方法还有其他的方法，感兴趣的同学可以自行浏览一下 pipeline 的 api ，这里我们添加的顺序为 A -> B -> C，最后，我们来看一下控制台的输出
+
+![](20.png) 
+
+ 可以看到，inBoundHandler 的执行顺序与我们通过 `addLast()` 方法 添加的顺序保持一致，接下来，我们再来看一下 `outBoundHandler` 的事件传播。 
 
 
 
+## ChannelOutboundHandler 的事件传播
+
+关于 `ChanneloutBoundHandler` ，我们拿 `write()` 为例子，来体验一下 outbound 事件的传播。
+
+我们继续在服务端的 pipeline 添加三个 `ChanneloutBoundHandler`
+
+```java
+	serverBootstrap
+        .childHandler(new ChannelInitializer<NioSocketChannel>() {
+            protected void initChannel(NioSocketChannel ch) {
+                // inBound，处理读数据的逻辑链
+                ch.pipeline().addLast(new InBoundHandlerA());
+                ch.pipeline().addLast(new InBoundHandlerB());
+                ch.pipeline().addLast(new InBoundHandlerC());
+                
+                // outBound，处理写数据的逻辑链
+                ch.pipeline().addLast(new OutBoundHandlerA());
+                ch.pipeline().addLast(new OutBoundHandlerB());
+                ch.pipeline().addLast(new OutBoundHandlerC());
+            }
+        });
+```
+
+PS:  除了addLast。还有一个叫addFist的方法 。
 
 
 
+ 每个 outBoundHandler 都继承自 `ChanneloutBoundHandlerAdapter`，然后实现了 `write()` 方法 
+
+```java
+public class OutBoundHandlerA extends ChannelOutboundHandlerAdapter {
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        System.out.println("OutBoundHandlerA: " + msg);
+        super.write(ctx, msg, promise);
+    }
+}
+
+public class OutBoundHandlerB extends ChannelOutboundHandlerAdapter {
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        System.out.println("OutBoundHandlerB: " + msg);
+        super.write(ctx, msg, promise);
+    }
+}
+
+public class OutBoundHandlerC extends ChannelOutboundHandlerAdapter {
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        System.out.println("OutBoundHandlerC: " + msg);
+        super.write(ctx, msg, promise);
+    }
+}
+```
+
+在 `write()` 方法里面，我们打印当前 handler 的信息，然后调用父类的 `write()` 方法，而这里父类的 `write()` 方法会自动调用到下一个 outBoundHandler 的 `write()` 方法，并且会把当前 outBoundHandler 里处理完毕的对象传递到下一个 outBoundHandler。
+
+我们通过 `addLast()` 方法 添加 outBoundHandler 的顺序为 A -> B -> C，最后，我们来看一下控制台的输出
+
+**注意，此时InCoundHandler要随便write一个东西，不然不会触发OutBoundHandler**   InBoundHandler 必须要有响应操作（ctx.channel().writeAndFlush(buffer);）才可以触发OutBoundHandler 
+
+```java
+public class InBoundHandlerA extends ChannelInboundHandlerAdapter {
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("InBoundHandlerA: " + msg);
+        super.channelRead(ctx, msg);
+
+        //发送消息才会触发ChannelOutboundHandlerAdapter
+        MessageResponsePacket messageResponsePacket = new MessageResponsePacket();
+        messageResponsePacket.setMessage("test");
+        ByteBuf responseByteBuf = PacketCodeC.INSTANCE.encode(ctx.alloc(), messageResponsePacket);
+        ctx.channel().writeAndFlush(responseByteBuf);
+    }
+}
+```
+
+![](25.png) 
 
 
 
+ 可以看到，outBoundHandler 的执行顺序与我们添加的顺序相反，最后，我们再来看一下 pipeline 的结构和执行顺序。 
+
+ pipeline 的结构 
+
+![](26.png) 
+
+ 不管我们定义的是哪种类型的 handler, 最终它们都是以双向链表的方式连接，这里实际链表的节点是 `ChannelHandlerContext`，这里为了让结构清晰突出，可以直接把节点看作 `ChannelHandlerContext`。 
+
+ pipeline 的执行顺序 
+
+![](27.png) 
+
+虽然两种类型的 handler 在一个双向链表里，但是这两类 handler 的分工是不一样的，inBoundHandler 的事件通常只会传播到下一个 inBoundHandler，outBoundHandler 的事件通常只会传播到下一个 outBoundHandler，两者相互不受干扰。
+
+netty寻找下一个inBound节点的过程是一个线性搜索的过程，他会遍历双向链表的下一个节点，直到下一个节点为inBound  
+
+outBound节点的过程和找inBound节点类似，反方向遍历pipeline中的双向链表，直到第一个outBound节点`next`，然后调用`next.invokeWriteAndFlush(m, promise)`
+
+ 总结： inBound事件从head节点传播到tail节点，outBound事件从tail节点传播到head节点。异常传播只会往后传播，而且不分inbound还是outbound节点，不像outBound事件一样会往前传播
+
+详见
+
+[netty源码分析之pipeline(一)](https://www.jianshu.com/p/6efa9c5fa702)   
+
+[netty源码分析之pipeline(二)](https://www.jianshu.com/p/087b7e9a27a2)  
+
+[netty源码分析之揭开reactor线程的面纱（三）](https://www.jianshu.com/p/58fad8e42379)  
+
+关于 pipeline 与 channelHandler 相关的事件传播就讲到这，在下一小节，我们会了解到几种特殊的 channelHandler，并且使用这几种特殊的 channelHandler 来改造我们的客户端和服务端逻辑，解决掉 `if else` 泛滥的问题，最后，我们对本小节内容做下总结。
+
+## 总结
+
+1. 通过我们前面编写客户端服务端处理逻辑，引出了 pipeline 和 channelHandler 的概念。
+2. channelHandler 分为 inBound 和 outBound 两种类型的接口，分别是处理数据读与数据写的逻辑，可与 tcp 协议栈联系起来。
+3. 两种类型的 handler 均有相应的默认实现，默认会把事件传递到下一个，这里的传递事件其实说白了就是把本 handler 的处理结果传递到下一个 handler 继续处理。
+4. inBoundHandler 的执行顺序与我们实际的添加顺序相同，而 outBoundHandler 则相反。
 
 
 
+## 思考
+
+1. 参考本文的例子，如果我们往 pipeline 里面添加 handler 的顺序不变， 要在控制台打印出 inboundA -> inboundC -> outboundB -> outboundA，该如何实现？
+2. 如何在每个 handler 里面打印上一个 handler 处理结束的时间点？
+
+答： 
+
+```
+ 可以给每个handler加个名字：inA、inB、inC、outA、outB、outC， 然后在inA里删除inB和outC就行了： ctx.pipeline().remove("inB"); ctx.pipeline().remove("outC"); 
+```
 
 
 
+# 实战: 构建客户端与服务端 pipeline
+
+ 通过上小节的学习，我们已经了解 pipeline 和 channelHandler 的基本概念。本小节，我们使用上一小节的理论知识来重新构建服务端和客户端的 pipeline，把复杂的逻辑从单独的一个 channelHandler 中抽取出来。 
+
+ Netty 内置了很多开箱即用的 ChannelHandler。下面，我们通过学习 Netty 内置的 ChannelHandler 来逐步构建我们的 pipeline。 
 
 
+
+## ChannelInboundHandlerAdapter 与 ChannelOutboundHandlerAdapter
+
+![](19.png) 
+
+
+
+ 首先是 `ChannelInboundHandlerAdapter` ，这个适配器主要用于实现其接口 `ChannelInboundHandler` 的所有方法，这样我们在编写自己的 handler 的时候就不需要实现 handler 里面的每一种方法，而只需要实现我们所关心的方法，默认情况下，对于 `ChannelInboundHandlerAdapter`，我们比较关心的是他的如下方法 
+
+ChannelInboundHandlerAdapter.java
+
+```java
+@Override
+public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    ctx.fireChannelRead(msg);
+}
+```
+
+**他的作用就是接收上一个 handler 的输出，这里的 `msg` 就是上一个 handler 的输出**。大家也可以看到，**默认情况下 adapter 会通过 `fireChannelRead()` 方法直接把上一个 handler 的输出结果传递到下一个 handler**。 
+
+与 `ChannelInboundHandlerAdapter` 类似的类是 `ChannelOutboundHandlerAdapter`，它的核心方法如下
+
+
+
+```java
+@Override
+public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+    ctx.write(msg, promise);
+}	
+```
+
+
+
+默认情况下，这个 adapter 也会把对象传递到下一个 outBound 节点，它的传播顺序与 inboundHandler 相反，这里就不再对这个类展开了。
+
+我们的例子中往 pipeline 添加的第一个 handler 中的 `channelRead` 方法中，`msg` 对象其实就是 `ByteBuf`。服务端在接受到数据之后，应该首先要做的第一步逻辑就是把这个 ByteBuf 进行解码，然后把解码后的结果传递到下一个 handler，像这样
+
+```java
+@Override
+public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        ByteBuf requestByteBuf = (ByteBuf) msg;
+        // 解码
+        Packet packet = PacketCodeC.INSTANCE.decode(requestByteBuf);
+        // 解码后的对象传递到下一个 handler 处理
+        ctx.fireChannelRead(packet)
+}
+```
+
+ 不过在开始解码之前，我们来了解一下另外一个特殊的 handler 
+
+## ByteToMessageDecoder
+
+通常情况下，无论我们是在客户端还是服务端，当我们收到数据之后，首先要做的事情就是把二进制数据转换到我们的一个 Java 对象，所以 Netty 很贴心地写了一个父类，来专门做这个事情，下面我们来看一下，如何使用这个类来实现服务端的解码
+
+```java
+public class PacketDecoder extends ByteToMessageDecoder {
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List out) {
+        out.add(PacketCodeC.INSTANCE.decode(in));
+    }
+}
+```
+
+当我们继承了 `ByteToMessageDecoder` 这个类之后，我们只需要实现一下 `decode()` 方法，这里的 in 大家可以看到，传递进来的时候就已经是 ByteBuf 类型，所以我们不再需要强转，**第三个参数是 `List` 类型，我们通过往这个 `List` 里面添加解码后的结果对象，就可以自动实现结果往下一个 handler 进行传递**，这样，我们就实现了解码的逻辑 handler。
+
+另外，值得注意的一点，对于 Netty 里面的 ByteBuf，我们使用 `4.1.6.Final` 版本，默认情况下用的是堆外内存，在 ByteBuf这一小节中我们提到，**堆外内存我们需要自行释放**，在我们前面小节的解码的例子中，其实我们已经**漏掉了这个操作，这一点是非常致命的，随着程序运行越来越久，内存泄露的问题就慢慢暴露出来了， 而这里我们使用 `ByteToMessageDecoder`，Netty 会自动进行内存的释放，我们不用操心太多的内存管理方面的逻辑**，关于如何自动释放内存大家有兴趣可以参考一下 [ByteToMessageDecoder的实现原理(8-2)](https://coding.imooc.com/class/chapter/230.html#Anchor)。 
+
+ 怎么判断bytebuf是堆外内存？ 答：  ByteBuf.isDirect() 
+
+当我们通过解码器把二进制数据转换到 Java 对象即指令数据包之后，就可以针对每一种指令数据包编写逻辑了。
+
+
+
+## SimpleChannelInboundHandler
+
+回顾一下我们前面处理 Java 对象的逻辑
+
+```java
+if (packet instanceof LoginRequestPacket) {//登录请求
+    // ...
+} else if (packet instanceof MessageRequestPacket) {//消息请求
+    // ...
+} else if ...
+```
+
+我们通过 `if else` 逻辑进行逻辑的处理，当我们要处理的指令越来越多的时候，代码会显得越来越臃肿，我们可以通过给 pipeline 添加多个 handler(ChannelInboundHandlerAdapter的子类) 来解决过多的 `if else` 问题，如下
+
+ XXXHandler.java 
+
+```java
+if (packet instanceof XXXPacket) {
+    // ...处理
+} else {
+   ctx.fireChannelRead(packet); //默认情况下 adapter 会通过 `fireChannelRead()` 方法直接把上一个 handler 的输出结果传递到下一个 handler。 这里我们传递给下一个指令处理器
+}
+```
+
+上面的代码也是通过判断不同的packet来进行不同的处理，只不过处理的代码放到各个handler(ChannelInboundHandlerAdapter的子类) 中来处理而已。 这种方式只是解决了代码臃肿的问题，没解决多个if/else的问题。 
+
+ 
+
+这样一个好处就是，每次添加一个指令处理器，逻辑处理的框架都是一致的，
+
+但是，大家应该也注意到了，这里我们编写指令处理 handler 的时候，依然编写了一段我们其实可以不用关心的 if else 判断，然后**还要手动传递无法处理的对象 (XXXPacket) 至下一个指令处理器**，这也是一段重复度极高的代码，因此，Netty 基于这种考虑抽象出了一个 `SimpleChannelInboundHandler` 对象，类型判断和对象传递的活都自动帮我们实现了，而我们可以专注于处理我们所关心的指令即可。
+
+下面，我们来看一下如何使用 `SimpleChannelInboundHandler` 来简化我们的指令处理逻辑
+
+ LoginRequestHandler .java
+
+```java
+public class LoginRequestHandler extends SimpleChannelInboundHandler<LoginRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, LoginRequestPacket loginRequestPacket) {
+        // 登录逻辑
+    }
+}
+```
+
+`SimpleChannelInboundHandler` 从字面意思也可以看到，使用它非常简单，我们在继承这个类的时候，给他传递一个泛型参数，然后在 `channelRead0()` 方法里面，我们不用再通过 if 逻辑来判断当前对象是否是本 handler 可以处理的对象，也不用强转，不用往下传递本 handler 处理不了的对象，**这一切都已经交给父类 `SimpleChannelInboundHandler` 来实现了**，我们只需要专注于我们要处理的业务逻辑即可。
+
+自动把对应的packet交给对应的handler去处理 
+
+上面的 `LoginRequestHandler` 是用来处理登录的逻辑，同理，我们可以很轻松地编写一个消息处理逻辑处理器
+
+ MessageRequestHandler .java
+
+```java
+public class MessageRequestHandler extends SimpleChannelInboundHandler<MessageRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, MessageRequestPacket messageRequestPacket) {
+		//消息处理逻辑
+    }
+}
+```
+
+## MessageToByteEncoder
+
+ 在前面几个小节，我们已经实现了登录和消息处理逻辑，处理完请求之后，我们都会给客户端一个响应，在写响应之前，我们需要把响应对象编码成 ByteBuf，结合我们本小节的内容，最后的逻辑框架如下 
+
+```java
+//登录
+public class LoginRequestHandler extends SimpleChannelInboundHandler<LoginRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, LoginRequestPacket loginRequestPacket) {
+        LoginResponsePacket loginResponsePacket = login(loginRequestPacket);
+        ByteBuf responseByteBuf = PacketCodeC.INSTANCE.encode(ctx.alloc(), loginResponsePacket);//编码
+        ctx.channel().writeAndFlush(responseByteBuf);
+    }
+}
+//消息
+public class MessageRequestHandler extends SimpleChannelInboundHandler<MessageRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, MessageRequestPacket messageRequestPacket) {
+        MessageResponsePacket messageResponsePacket = receiveMessage(messageRequestPacket);
+        ByteBuf responseByteBuf = PacketCodeC.INSTANCE.encode(ctx.alloc(), messageRequestPacket);//编码
+        ctx.channel().writeAndFlush(responseByteBuf);
+    }
+}
+```
+
+ 我们注意到，**我们处理每一种指令完成之后的逻辑是类似的，都需要进行编码**，然后调用 `writeAndFlush()` 将数据写到客户端，这个编码的过程其实也是重复的逻辑，而且在编码的过程中，我们还需要手动去创建一个 ByteBuf，如下过程 
+
+ PacketCodeC .java
+
+```java
+public ByteBuf encode(ByteBufAllocator byteBufAllocator, Packet packet) {
+    // 1. 创建 ByteBuf 对象
+    ByteBuf byteBuf = byteBufAllocator.ioBuffer();
+    // 2. 序列化 java 对象
+
+    // 3. 实际编码过程
+
+    return byteBuf;
+}
+```
+
+ 而**Netty 提供了一个特殊的 channelHandler 来专门处理编码逻辑，我们不需要每一次将响应写到对端的时候调用一次编码逻辑进行编码，也不需要自行创建 ByteBuf，这个类叫做 `MessageToByteEncoder`**，从字面意思也可以看出，它的功能就是将对象转换到二进制数据。 
+
+下面，我们来看一下，我们如何来实现编码逻辑
+
+```java
+
+public class PacketEncoder extends MessageToByteEncoder<Packet> {
+
+    @Override
+    protected void encode(ChannelHandlerContext ctx, Packet packet, ByteBuf out) {
+        PacketCodeC.INSTANCE.encode(out, packet);
+    }
+}
+```
+
+`PacketEncoder` 继承自 `MessageToByteEncoder`，泛型参数 `Packet` 表示这个类的作用是实现 `Packet` 类型对象到二进制的转换。
+
+这里我们只需要实现 `encode()` 方法，我们注意到，在这个方法里面，第二个参数是 Java 对象，而第三个参数是 ByteBuf 对象，我们在这个方法里面要做的事情就是把 Java 对象里面的字段写到 ByteBuf，我们不再需要自行去分配 ByteBuf，因此，大家注意到，`PacketCodeC` 的 `encode()` 方法的定义也改了，下面是更改前后的对比
+
+
+
+ PacketCodeC.java
+
+```java
+// 更改前的定义
+public ByteBuf encode(ByteBufAllocator byteBufAllocator, Packet packet) {
+    // 1. 创建 ByteBuf 对象
+    ByteBuf byteBuf = byteBufAllocator.ioBuffer();
+    // 2. 序列化 java 对象
+
+    // 3. 实际编码过程
+
+    return byteBuf;
+}
+// 更改后的定义
+public void encode(ByteBuf byteBuf, Packet packet) {
+    // 1. 序列化 java 对象
+
+    // 2. 实际编码过程
+}
+```
+
+我们可以看到，`PacketCodeC` 不再需要手动创建对象，不再需要再把创建完的 ByteBuf 进行返回。当我们向 pipeline 中添加了这个编码器之后，我们在指令处理完毕之后就只需要 writeAndFlush java 对象即可，像这样
+
+```java
+public class LoginRequestHandler extends SimpleChannelInboundHandler<LoginRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, LoginRequestPacket loginRequestPacket) {
+        ctx.channel().writeAndFlush(login(loginRequestPacket));
+    }
+}
+
+public class MessageRequestHandler extends SimpleChannelInboundHandler<MessageResponsePacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, MessageResponsePacket messageRequestPacket) {
+        ctx.channel().writeAndFlush(receiveMessage(messageRequestPacket));
+    }
+}
+```
+
+通过我们前面的分析，可以看到，Netty 为了让我们逻辑更为清晰简洁，帮我们做了很多工作，能直接用 Netty 自带的 handler 来解决的问题，不要重复造轮子。在接下里的小节，我们会继续探讨 Netty 还有哪些开箱即用的 handler。
+
+分析完服务端的 pipeline 的 handler 组成结构，相信读者也不难自行分析出客户端的 handler 结构，最后，我们来看一下服务端和客户端完整的 pipeline 的 handler 结构
+
+## 构建客户端与服务端 pipeline
+
+![](28.png) 
+
+
+
+对应我们的代码
+
+ 服务端
+
+ ```java
+serverBootstrap
+                .group(boosGroup, workerGroup)
+                .channel(NioServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 1024)
+                .childOption(ChannelOption.SO_KEEPALIVE, true)
+                .childOption(ChannelOption.TCP_NODELAY, true)
+                .childHandler(new ChannelInitializer<NioSocketChannel>() {
+                    protected void initChannel(NioSocketChannel ch) {
+                        //PacketDecoder继承了当我们继承了 ByteToMessageDecoder 这个类，可以实现解码
+                        ch.pipeline().addLast(new PacketDecoder());//解码
+                        //下面add的这些Handler都继承了 SimpleChannelInboundHandler
+                        //SimpleChannelInboundHandler 从字面意思也可以看到，使用它非常简单，我们在继承这个类的时候，给他传递一个泛型参数，然后在 channelRead0() 方法里面，我们不用再通过 if 逻辑来判断当前对象是否是本 handler 可以处理的对象，也不用强转，不用往下传递本 handler 处理不了的对象，**这一切都已经交给父类 `SimpleChannelInboundHandler` 来实现了**，我们只需要专注于我们要处理的业务逻辑即可
+                        ch.pipeline().addLast(new LoginRequestHandler());//登录请求
+                        ch.pipeline().addLast(new MessageRequestHandler());//消息请求
+                        //PacketEncyyoder继承了MessageToByteEncoder,它的功能就是将对象转换到二进制数据。
+                        ch.pipeline().addLast(new PacketEncoder());//二进制
+                    }
+                });
+ ```
+
+
+
+ 客户端
+
+```java
+	bootstrap
+        .handler(new ChannelInitializer<SocketChannel>() {
+            @Override
+            public void initChannel(SocketChannel ch) {
+                ch.pipeline().addLast(new PacketDecoder());//解码
+                ch.pipeline().addLast(new LoginResponseHandler());//登录回复
+                ch.pipeline().addLast(new MessageResponseHandler());//消息回复
+                ch.pipeline().addLast(new PacketEncoder());//编码
+            }
+        });
+```
+
+各个handler这里就不贴了，详见[代码](LearnNettySource.zip)   
+
+总之就是不需要if/else判断各个packet，然后相应处理了,上面列出的Netty提供的各个handler都做了处理。 解密的，加密的，还有SimpleChannelInboundHandler会根据泛型将不同的对象传入 
+
+## 总结
+
+本小节，我们通过学习 netty 内置的 channelHandler 来逐步构建我们的服务端 pipeline，通过内置的 channelHandler 可以减少很多重复逻辑。
+
+1. 基于 ByteToMessageDecoder，我们可以实现自定义解码，而不用关心 ByteBuf 的强转和 解码结果的传递。
+2. 基于 SimpleChannelInboundHandler，我们可以实现每一种指令的处理，不再需要强转，不再有冗长乏味的 `if else` 逻辑，不需要手动传递对象。
+3. 基于 `MessageToByteEncoder`，我们可以实现自定义编码，而不用关心 ByteBuf 的创建，不用每次向对端写 Java 对象都进行一次编码。
+
+## 思考
+
+在 `LoginRequestHandler` 以及 `MessageRequestHandler` 的 `channelRead0()` 方法中，第二个参数对象（XXXRequestPacket）是从哪里传递过来的？
+
+答: 
+
+```
+channelRead0(ChannelHandlerContext ctx, MessageRequestPacket msg) 的msg是由父类SimpleChannelInboundHandler的channelRead() 方法判断是需要类型后, 强转类型后传递进来的
+I imsg = (I) msg;
+channelRead0(ctx, imsg);//详见SimpleChannelInboundHandler源码
+```
+
+
+
+# 粘包拆包理论与解决方案
+
+## 例子
+
+FirstClientHandler.java
+
+```java
+public class FirstClientHandler extends ChannelInboundHandlerAdapter {
+    //客户端连接建立成功之后，会调用channelActive()这个方法
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        for (int i = 0; i < 1000; i++) {
+            ByteBuf buffer = getByteBuf(ctx);
+            ctx.channel().writeAndFlush(buffer);
+        }
+    }
+
+    private ByteBuf getByteBuf(ChannelHandlerContext ctx) {
+        byte[] bytes = "你好，欢迎关注我的微信公众号,<格兰芬多>".getBytes(Charset.forName("utf-8"));
+        ByteBuf buffer = ctx.alloc().buffer();
+        buffer.writeBytes(bytes);
+        return buffer;
+    }
+}
+```
+
+FirstServerHandler.java
+
+````java
+public class FirstServerHandler extends ChannelInboundHandlerAdapter {
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        ByteBuf byteBuf = (ByteBuf) msg;
+        System.out.println(new Date() + ": 服务端读到数据 -> " + byteBuf.toString(Charset.forName("utf-8")));
+    }
+}
+
+````
+
+
+
+服务端收到数据之后，仅仅把数据打印出来，读者可以花几分钟时间思考一下，服务端的输出会是什么样子的？
+
+可能很多读者觉得服务端会输出 1000 次 “你好，欢迎关注我的微信公众号，《格兰芬多》!”，然而实际上服务端却是如下输出：
+
+![](29.png) 
+
+
+
+从服务端的控制台输出可以看出，存在三种类型的输出
+
+1. 一种是正常的字符串输出。
+2. 一种是多个字符串“粘”在了一起，我们定义这种 ByteBuf 为粘包。
+3. 一种是一个字符串被“拆”开，形成一个破碎的包，我们定义这种 ByteBuf 为半包。
+
+## 为什么会有粘包半包现象？
+
+我们需要知道，尽管我们在应用层面使用了 Netty，但是对于操作系统来说，只认 TCP 协议，尽管我们的应用层是按照 ByteBuf 为 单位来发送数据，但是到了底层操作系统仍然是按照字节流发送数据，因此，数据到了服务端，也是按照字节流的方式读入，然后到了 Netty 应用层面，重新拼装成 ByteBuf，而这里的 ByteBuf 与客户端按顺序发送的 ByteBuf 可能是不对等的。因此，我们需要在客户端根据自定义协议来组装我们应用层的数据包，然后在服务端根据我们的应用层的协议来组装数据包，这个过程通常在服务端称为拆包，而在客户端称为粘包。
+
+拆包和粘包是相对的，一端粘了包，另外一端就需要将粘过的包拆开，举个栗子，发送端将三个数据包粘成两个 TCP 数据包发送到接收端，接收端就需要根据应用协议将两个数据包重新组装成三个数据包。
+
+
+
+## 拆包的原理
+
+在没有 Netty 的情况下，用户如果自己需要拆包，基本原理就是不断从 TCP 缓冲区中读取数据，每次读取完都需要判断是否是一个完整的数据包
+
+1. **如果当前读取的数据不足以拼接成一个完整的业务数据包，那就保留该数据，继续从 TCP 缓冲区中读取，直到得到一个完整的数据包**。
+2. 如果当前读到的数据加上已经读取的数据足够拼接成一个数据包，那就将已经读取的数据拼接上本次读取的数据，构成一个完整的业务数据包传递到业务逻辑，多余的数据仍然保留，以便和下次读到的数据尝试拼接。
+
+如果我们自己实现拆包，这个过程将会非常麻烦，我们的每一种自定义协议，都需要自己实现，还需要考虑各种异常，而 Netty 自带的一些开箱即用的拆包器已经完全满足我们的需求了，下面我们来介绍一下 Netty 有哪些自带的拆包器。
+
+## Netty 自带的拆包器
+
+### 1. 固定长度的拆包器 FixedLengthFrameDecoder
+
+如果你的应用层协议非常简单，每个数据包的长度都是固定的，比如 100，那么只需要把这个拆包器加到 pipeline 中，Netty 会把一个个长度为 100 的数据包 (ByteBuf) 传递到下一个 channelHandler。
+
+### 2. 行拆包器 LineBasedFrameDecoder
+
+从字面意思来看，发送端发送数据包的时候，**每个数据包之间以换行符作为分隔**，接收端通过 LineBasedFrameDecoder 将粘过的 ByteBuf 拆分成一个个完整的应用层数据包。
+
+### 3. 分隔符拆包器 DelimiterBasedFrameDecoder
+
+DelimiterBasedFrameDecoder 是行拆包器的通用版本，只不过我们**可以自定义分隔符**。
+
+### 4. 基于长度域拆包器 LengthFieldBasedFrameDecoder
+
+最后一种拆包器是最通用的一种拆包器，只要你的自定义协议中包含长度域字段，均可以使用这个拆包器来实现应用层拆包。由于上面三种拆包器比较简单，读者可以自行写出 demo，接下来，我们就结合我们的自定义协议，来学习一下如何使用基于长度域的拆包器来拆解我们的数据包。
+
+## 如何使用 LengthFieldBasedFrameDecoder
+
+ 首先，我们来回顾一下我们的自定义协议 
+
+![](30.png) 
+
+详细的协议分析参考 客户端与服务端通信协议编解码  这小节，这里不再赘述。 关于拆包，我们只需要关注
+
+1. 在我们的自定义协议中，我们的长度域在整个数据包的哪个地方，专业术语来说就是长度域相对整个数据包的偏移量是多少，这里显然是 4+1+1+1=7。
+2. 另外需要关注的就是，我们长度域的长度是多少，这里显然是 4。 有了长度域偏移量和长度域的长度，我们就可以构造一个拆包器。
+
+```java
+new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 7, 4);
+```
+
+其中，第一个参数指的是数据包的最大长度，第二个参数指的是长度域的偏移量，第三个参数指的是长度域的长度，这样一个拆包器写好之后，只需要在 pipeline 的最前面加上这个拆包器。
+
+由于这类拆包器使用最为广泛，想深入学习参考这篇文章 [netty源码分析之LengthFieldBasedFrameDecoder](https://www.jianshu.com/p/a0a51fd79f62) 
+
+服务端
+
+```java
+ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 7, 4));
+ch.pipeline().addLast(new PacketDecoder());
+ch.pipeline().addLast(new LoginRequestHandler());
+ch.pipeline().addLast(new MessageRequestHandler());
+ch.pipeline().addLast(new PacketEncoder());
+```
+
+客户端
+
+```java
+ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 7, 4));
+ch.pipeline().addLast(new PacketDecoder());
+ch.pipeline().addLast(new LoginResponseHandler());
+ch.pipeline().addLast(new MessageResponseHandler());
+ch.pipeline().addLast(new PacketEncoder());
+```
+
+这样，在后续 `PacketDecoder` 进行 decode 操作的时候，ByteBuf 就是一个完整的自定义协议数据包。
+
+LengthFieldBasedFrameDecoder 有很多重载的构造参数，由于篇幅原因，这里不再展开， 但是没关系，关于 LengthFieldBasedFrameDecoder 的详细使用可参考[简书](https://www.jianshu.com/p/a0a51fd79f62)，对原理感兴趣的同学可以参考[我的视频](https://coding.imooc.com/class/230.html)，了解了详细的使用方法之后，就可以有针对性地根据你的自定义协议来构造 LengthFieldBasedFrameDecoder。
+
+## 拒绝非本协议连接
+
+不知道大家还记不记得，我们在设计协议的时候为什么在数据包的开头加上一个魔数，遗忘的同学可以参考[客户端与服务端通信协议编解码](https://juejin.im/book/6844733738119593991/section/6844733738278977550)回顾一下。我们设计魔数的原因是为了尽早屏蔽非本协议的客户端，通常在第一个 handler 处理这段逻辑。我们接下来的做法是每个客户端发过来的数据包都做一次快速判断，判断当前发来的数据包是否是满足我的自定义协议， 我们只需要继承自 LengthFieldBasedFrameDecoder 的 `decode()` 方法，然后在 decode 之前判断前四个字节是否是等于我们定义的魔数 `0x12345678`
+
+```java
+public class Spliter extends LengthFieldBasedFrameDecoder {
+    private static final int LENGTH_FIELD_OFFSET = 7;
+    private static final int LENGTH_FIELD_LENGTH = 4;
+
+    public Spliter() {
+        super(Integer.MAX_VALUE, LENGTH_FIELD_OFFSET, LENGTH_FIELD_LENGTH);
+    }
+
+    @Override
+    protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+        // 屏蔽非本协议的客户端
+        if (in.getInt(in.readerIndex()) != PacketCodeC.MAGIC_NUMBER) {
+            ctx.channel().close();
+            return null;
+        }
+
+        return super.decode(ctx, in);
+    }
+}
+```
+
+最后，我们只需要替换一下如下代码即可
+
+```
+//ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 7, 4));
+// 替换为
+ch.pipeline().addLast(new Spliter());
+```
+
+然后，我们再来实验一下
+
+![](31.png) 
+
+ 可以看到，我们使用 telnet 连接上服务端之后（与服务端建立了连接），向服务端发送一段字符串，由于这段字符串是不符合我们的自定义协议的，于是在第一时间，我们的服务端就关闭了这条连接。 
+
+## 服务端和客户端的 pipeline 结构
+
+至此，我们服务端和客户端的 pipeline 结构为
+
+![](32.png) 
+
+最后，我们对本小节内容做一下总结
+
+## 总结
+
+1. 我们通过一个例子来理解为什么要有拆包器，说白了，拆包器的作用就是根据我们的自定义协议，把数据拼装成一个个符合我们自定义数据包大小的 ByteBuf，然后送到我们的自定义协议解码器去解码。
+2. Netty 自带的拆包器包括基于固定长度的拆包器，基于换行符和自定义分隔符的拆包器，还有另外一种最重要的基于长度域的拆包器。通常 Netty 自带的拆包器已完全满足我们的需求，无需重复造轮子。
+3. 基于 Netty 自带的拆包器，我们可以在拆包之前判断当前连上来的客户端是否是支持自定义协议的客户端，如果不支持，可尽早关闭，节省资源。
+
+## 问答
+
+ 自定义拆包的时候。先读取4个字节的魔数。假如由于拆包导致不够四个字节怎么办。   不会出现这种情况，decode方法是在数据满足完整Frame格式才会被调用 
+
+ websocke和http的拆包，netty已经帮你做好了，不需要自己拆包了 .只有自定协议的才需要拆包
+
+# channelHandler 的生命周期
+
+> 在前面的小节中，对于 ChannelHandler，我们重点落在了读取数据相关的逻辑，这小节，我们来学习一下 ChannelHandler 的其他回调方法，这些回调方法的执行是有顺序的，而这个执行顺序可以称为 ChannelHandler 的生命周期。 
+
+## ChannelHandler 的生命周期详解
+
+这小节，我们还是基于前面小节的代码，我们添加一个自定义 ChannelHandler 来测试一下各个回调方法的执行顺序。
+
+对于服务端应用程序来说，我们这里讨论 ChannelHandler 更多的指的是 `ChannelInboundHandler`，在本小节，我们基于 `ChannelInboundHandlerAdapter`，自定义了一个 handler: `LifeCyCleTestHandler`
+
+```java
+public class LifeCyCleTestHandler extends ChannelInboundHandlerAdapter {
+    @Override
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("逻辑处理器被添加：handlerAdded()");
+        super.handlerAdded(ctx);
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("channel 绑定到线程(NioEventLoop)：channelRegistered()");
+        super.channelRegistered(ctx);
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("channel 准备就绪：channelActive()");
+        super.channelActive(ctx);
+    }
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("channel 有数据可读：channelRead()");
+        super.channelRead(ctx, msg);
+    }
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("channel 某次数据读完：channelReadComplete()");
+        super.channelReadComplete(ctx);
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("channel 被关闭：channelInactive()");
+        super.channelInactive(ctx);
+    }
+
+    @Override
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("channel 取消线程(NioEventLoop) 的绑定: channelUnregistered()");
+        super.channelUnregistered(ctx);
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("逻辑处理器被移除：handlerRemoved()");
+        super.handlerRemoved(ctx);
+    }
+}
+```
+
+ 上面的代码可以看到，我们在每个方法被调用的时候都会打印一段文字，然后把这个事件继续往下传播。最后，我们把这个 handler 添加到我们在上小节构建的 pipeline 中 
+
+```java
+// 前面代码略
+.childHandler(new ChannelInitializer<NioSocketChannel>() {
+    protected void initChannel(NioSocketChannel ch) {
+        // 添加到第一个
+        ch.pipeline().addLast(new LifeCyCleTestHandler());
+        ch.pipeline().addLast(new PacketDecoder());
+        ch.pipeline().addLast(new LoginRequestHandler());
+        ch.pipeline().addLast(new MessageRequestHandler());
+        ch.pipeline().addLast(new PacketEncoder());
+    }
+});
+```
+
+ 接着，我们先运行 `NettyServer.java`，然后再运行 `NettyClient.java`，这个时候，Server 端 控制台的输出为 
+
+![](33.png) 
+
+可以看到，ChannelHandler 回调方法的执行顺序为
+
+```java
+handlerAdded() -> channelRegistered() -> channelActive() -> channelRead() -> channelReadComplete()
+```
+
+下面，我们来逐个解释一下每个回调方法的含义
+
+1. `handlerAdded()` ：指的是当检测到新连接之后，调用 `ch.pipeline().addLast(new LifeCyCleTestHandler());` 之后的回调，表示在当前的 channel 中，已经成功添加了一个 handler 处理器。
+2. `channelRegistered()`：这个回调方法，表示当前的 channel 的所有的逻辑处理已经和某个 NIO 线程建立了绑定关系，类似我们在[Netty 是什么？](https://juejin.im/book/6844733738119593991/section/6844733738270588942)这小节中 BIO 编程中，accept 到新的连接，然后创建一个线程来处理这条连接的读写，只不过 Netty 里面是使用了线程池的方式，只需要从线程池里面去抓一个线程绑定在这个 channel 上即可，这里的 NIO 线程通常指的是 `NioEventLoop`,不理解没关系，后面我们还会讲到。
+3. `channelActive()`：当 channel 的所有的业务逻辑链准备完毕（也就是说 channel 的 pipeline 中已经添加完所有的 handler）以及绑定好一个 NIO 线程之后，这条连接算是真正激活了，接下来就会回调到此方法。
+4. `channelRead()`：客户端向服务端发来数据，每次都会回调此方法，表示有数据可读。
+5. `channelReadComplete()`：服务端每次读完一次完整的数据之后，回调该方法，表示数据读取完毕。
+
+接下来，我们再把客户端关闭，这个时候对于服务端来说，其实就是 channel 被关闭
+
+![](34.png) 
+
+ChannelHandler 回调方法的执行顺序为
+
+```
+channelInactive() -> channelUnregistered() -> handlerRemoved()
+```
+
+到了这里，相信大家应该已经能够看到，这里的回调方法的执行顺序是新连接建立时候的逆操作，下面我们还是来解释一下每个方法的含义
+
+1. `channelInactive()`: 表面这条连接已经被关闭了，这条连接在 TCP 层面已经不再是 ESTABLISH 状态了
+2. `channelUnregistered()`: 既然连接已经被关闭，那么与这条连接绑定的线程就不需要对这条连接负责了，这个回调就表明与这条连接对应的 NIO 线程移除掉对这条连接的处理
+3. `handlerRemoved()`：最后，我们给这条连接上添加的所有的业务逻辑处理器都给移除掉。
+
+最后，我们用一幅图来标识 ChannelHandler 的生命周期
+
+![](35.png) 
+
+ 光是了解这些生命周期的回调方法其实是比较枯燥乏味的，我们接下来就来看一下这些回调方法的使用场景 
+
+
+
+## ChannelHandler 生命周期各回调方法用法举例
+
+Netty 对于一条连接的在各个不同状态下回调方法的定义还是蛮细致的，这个好处就在于我们能够基于这个机制写出扩展性较好的应用程序。
+
+### 1. ChannelInitializer 的实现原理
+
+仔细翻看一下我们的服务端启动代码，我们在给新连接定义 handler 的时候，其实只是通过 `childHandler()` 方法给新连接设置了一个 handler，这个 handler 就是 `ChannelInitializer`，而在 `ChannelInitializer` 的 `initChannel()` 方法里面，我们通过拿到 channel 对应的 pipeline，然后往里面塞 handler
+
+```java
+.childHandler(new ChannelInitializer<NioSocketChannel>() {
+    protected void initChannel(NioSocketChannel ch) {
+        ch.pipeline().addLast(new LifeCyCleTestHandler());
+        ch.pipeline().addLast(new PacketDecoder());
+        ch.pipeline().addLast(new LoginRequestHandler());
+        ch.pipeline().addLast(new MessageRequestHandler());
+        ch.pipeline().addLast(new PacketEncoder());
+    }
+});
+```
+
+ 这里的 `ChannelInitializer` 其实就利用了 Netty 的 handler 生命周期中 `channelRegistered()` 与 `handlerAdded()` 两个特性，我们简单翻一翻 `ChannelInitializer` 这个类的源代码： 
+
+ ChannelInitializer .java
+
+```java
+ protected abstract void initChannel(C ch) throws Exception;//自己实现
+
+    public final void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        // ...
+        initChannel(ctx);
+        // ...
+    }
+
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        // ...
+        if (ctx.channel().isRegistered()) {
+            initChannel(ctx);
+        }
+        // ...
+    }
+
+    private boolean initChannel(ChannelHandlerContext ctx) throws Exception {
+        if (initMap.putIfAbsent(ctx, Boolean.TRUE) == null) {
+            initChannel((C) ctx.channel());
+            // ...
+            return true;
+        }
+        return false;
+    }
+```
+
+这里，我把非重点代码略去，逻辑会更加清晰一些
+
+1. `ChannelInitializer` 定义了一个抽象的方法 `initChannel()`，**这个抽象方法由我们自行实现**，我们在服务端启动的流程里面的实现逻辑就是往 pipeline 里面塞我们的 handler 链
+2. `handlerAdded()` 和 `channelRegistered()` 方法，都会尝试去调用 `initChannel()` 方法，`initChannel()` 使用 `putIfAbsent()` 来防止 `initChannel()` 被调用多次
+3. 如果你 debug 了 `ChannelInitializer` 的上述两个方法，你会发现，在 `handlerAdded()` 方法被调用的时候，channel 其实已经和某个线程绑定上了，所以，就我们的应用程序来说，这里的 `channelRegistered()` 其实是多余的，那为什么这里还要尝试调用一次呢？我猜测应该是担心我们自己写了个类继承自 `ChannelInitializer`，然后覆盖掉了 `handlerAdded()` 方法，这样即使覆盖掉，在 `channelRegistered()` 方法里面还有机会再调一次 `initChannel()`，把我们自定义的 handler 都添加到 pipeline 中去。
+
+### 2. handlerAdded() 与 handlerRemoved()
+
+这两个方法通常可以用在一些资源的申请和释放
+
+### 3. channelActive() 连接 与 channelInActive()释放
+
+1. 对我们的应用程序来说，这两个方法表明的含义是 TCP 连接的建立与释放，通常我们在这两个回调里面统计单机的连接数，`channelActive()` 被调用，连接数加一，`channelInActive()` 被调用，连接数减一
+2. 另外，我们也可以在 `channelActive()` 方法中，实现对客户端连接 ip 黑白名单的过滤，具体这里就不展开了
+
+### 4. channelRead()
+
+我们在前面小节讲拆包粘包原理，服务端根据自定义协议来进行拆包，其实就是在这个方法里面，每次读到一定的数据，都会累加到一个容器里面，然后判断是否能够拆出来一个完整的数据包，如果够的话就拆了之后，往下进行传递，这里就不过多展开，感兴趣的同学可以阅读一下
+
+[netty源码分析之拆包器的奥秘](https://www.jianshu.com/p/dc26e944da95) 
+
+### 5. channelReadComplete()
+
+前面小节中，我们在每次向客户端写数据的时候，都通过 `writeAndFlush()` 的方法写并刷新到底层，其实这种方式不是特别高效，我们可以在之前调用 `writeAndFlush()` 的地方都调用 `write()` 方法，然后在这个方法里面调用 `ctx.channel().flush()` 方法,也即在当前handle的channelReadComplete()方法里面flush ，相当于一个批量刷新的机制，当然，如果你对性能要求没那么高，`writeAndFlush()` 足矣。
+
+关于 ChannelHandler 的生命周期相关的内容我们就讲到这，最后，我们对本小节内容作下总结
+
+## 总结
+
+1. 我们详细剖析了 ChannelHandler（主要是`ChannelInBoundHandler`）的各个回调方法，连接的建立和关闭，执行回调方法有个逆向的过程
+2. 每一种回调方法都有他各自的用法，但是有的时候某些回调方法的使用边界有些模糊，恰当地使用回调方法来处理不同的逻辑，可以使你的应用程序更为优雅。
+
+
+
+# 实战：使用 channelHandler 的热插拔实现客户端身份校验
+
+> 在前面的小节中，细心的读者可能会注意到，客户端连上服务端之后，即使没有进行登录校验，服务端在收到消息之后仍然会进行消息的处理，这个逻辑其实是有问题的。本小节，我们来学习一下如何使用 pipeline 以及 handler 强大的热插拔机制实现客户端身份校验。 
+
+##  身份检验
+
+首先，我们在客户端登录成功之后，标记当前的 channel 的状态为已登录：
+
+ LoginRequestHandler .java
+
+```java
+protected void channelRead0(ChannelHandlerContext ctx, LoginRequestPacket loginRequestPacket) {
+    if (valid(loginRequestPacket)) {
+        // ...
+        // 基于我们前面小节的代码，添加如下一行代码
+        LoginUtil.markAsLogin(ctx.channel());
+    } 
+    // ...
+}
+```
+
+ LoginUtil.java
+
+```java
+public static void markAsLogin(Channel channel) {
+    channel.attr(Attributes.LOGIN).set(true);
+}
+```
+在登录成功之后，我们通过给 channel 打上属性标记的方式，标记这个 channel 已成功登录，那么，接下来，我们是不是需要在后续的每一种指令的处理前，都要来判断一下用户是否登录？
+```java
+public static boolean hasLogin(Channel channel) {
+    Attribute<Boolean> loginAttr = channel.attr(Attributes.LOGIN);
+    return loginAttr.get() != null;
+}
+```
+
+ 判断一个用户是否登录很简单，只需要调用一下 `LoginUtil.hasLogin(channel)` 即可，但是，Netty 的 pipeline 机制帮我们省去了重复添加同一段逻辑的烦恼，我们只需要在后续所有的指令处理 handler 之前插入一个用户认证 handle： 
+
+NettyServer.java
+
+```java
+.childHandler(new ChannelInitializer<NioSocketChannel>() {
+    protected void initChannel(NioSocketChannel ch) {
+        ch.pipeline().addLast(new PacketDecoder());
+        ch.pipeline().addLast(new LoginRequestHandler());
+        // 新增加用户认证handler
+        ch.pipeline().addLast(new AuthHandler());
+        ch.pipeline().addLast(new MessageRequestHandler());
+        ch.pipeline().addLast(new PacketEncoder());
+    }
+});
+```
+
+ 从上面代码可以看出，我们在 `MessageRequestHandler` 之前插入了一个 `AuthHandler`，因此 `MessageRequestHandler` 以及后续所有指令相关的 handler（后面小节会逐个添加）的处理都会经过 `AuthHandler` 的一层过滤，只要在 `AuthHandler` 里面处理掉身份认证相关的逻辑，后续所有的 handler 都不用操心身份认证这个逻辑，接下来我们来看一下 `AuthHandler` 的具体实现： 
+
+AuthHandler.java
+
+```java
+public class AuthHandler extends ChannelInboundHandlerAdapter {
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        if (!LoginUtil.hasLogin(ctx.channel())) {
+            ctx.channel().close();
+        } else {
+            super.channelRead(ctx, msg);//如果校验成功,需要调用super.channelRead把读到的数据向下传递，传递给后续指令处理器。
+        }
+    }
+}
+```
+
+注意继承ChannelInboundHandlerAdapter和继承SimpleChannelInboundHandler不一样，ChannelInboundHandlerAdapter需要调用`super.channelRead`  把读到的数据向下传递，传递给后续指令处理器。  , 而SimpleChannelInboundHandler不需要
+
+SimpleChannelInboundHandler只处理泛型匹配到的类型的数据，而ChannelInboundHandlerAdapter处理所有类型的数据。 
+
+
+
+1. `AuthHandler` 继承自 `ChannelInboundHandlerAdapter`，覆盖了 `channelRead()` 方法，表明他可以处理所有类型的数据
+2. 在 `channelRead()` 方法里面，在决定是否把读到的数据传递到后续指令处理器之前，首先会判断是否登录成功，如果未登录，直接强制关闭连接（实际生产环境可能逻辑要复杂些，这里我们的重心在于学习 Netty，这里就粗暴些），否则，就把读到的数据向下传递，传递给后续指令处理器。
+
+`AuthHandler` 的处理逻辑其实就是这么简单。但是，有的读者可能要问了，如果客户端已经登录成功了，那么在每次处理客户端数据之前，我们都要经历这么一段逻辑，比如，平均每次用户登录之后发送100次消息，其实剩余的 99 次身份校验逻辑都是没有必要的，因为只要连接未断开，客户端只要成功登录过，后续就不需要再进行客户端的身份校验。
+
+这里我们为了演示，身份认证逻辑比较简单，实际生产环境中，身份认证的逻辑可能会更加复杂，我们需要寻找一种途径来避免资源与性能的浪费，使用 pipeline 的热插拔机制完全可以做到这一点。
+
+
+
+## 移除校验逻辑
+
+**对于 Netty 的设计来说，handler 其实可以看做是一段功能相对聚合的逻辑，然后通过 pipeline 把这些一个个小的逻辑聚合起来，串起一个功能完整的逻辑链**。既然可以把逻辑串起来，也可以做到动态删除一个或多个逻辑。
+
+在客户端校验通过之后，我们不再需要 `AuthHandler` 这段逻辑，而这一切只需要一行代码即可实现：
+
+AuthHandler.java
+
+```java
+public class AuthHandler extends ChannelInboundHandlerAdapter {
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        if (!LoginUtil.hasLogin(ctx.channel())) {
+            ctx.channel().close();
+        } else {
+            // 一行代码实现逻辑的删除
+            ctx.pipeline().remove(this);
+            super.channelRead(ctx, msg);
+        }
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) {
+        if (LoginUtil.hasLogin(ctx.channel())) {
+            System.out.println("当前连接登录验证完毕，无需再次验证, AuthHandler 被移除");
+        } else {
+            System.out.println("无登录验证，强制关闭连接!");
+        }
+    }
+}
+```
+
+上面的代码中，判断如果已经经过权限认证，那么就直接调用 pipeline 的 `remove()` 方法删除自身，这里的 `this` 指的其实就是 `AuthHandler` 这个对象，删除之后，这条客户端连接的逻辑链中就不再有这段逻辑了。
+
+另外，我们还覆盖了 `handlerRemoved()` 方法，主要用于后续的演示部分的内容，接下来，我们就来进行实际演示。
+
+## 身份校验演示
+
+在演示之前，对于客户端侧的代码，我们先把客户端向服务端发送消息的逻辑中，每次都判断是否登录的逻辑去掉，这样我们就可以在客户端未登录的情况下向服务端发送消息
+
+> NettyClient.java
+
+```java
+    private static void startConsoleThread(Channel channel) {
+        new Thread(() -> {
+            while (!Thread.interrupted()) {
+                // 这里注释掉
+//                if (LoginUtil.hasLogin(channel)) {
+                    System.out.println("输入消息发送至服务端: ");
+                    Scanner sc = new Scanner(System.in);
+                    String line = sc.nextLine();
+
+                    channel.writeAndFlush(new MessageRequestPacket(line));
+//                }
+            }
+        }).start();
+    }
+```
+
+###  有身份认证的演示
+
+我们先启动服务端，再启动客户端，在客户端的控制台，我们输入消息发送至服务端，这个时候服务端与客户端控制台的输出分别为
+
+ 客户端 
+
+![](36.png) 
+
+服务端
+
+![](37.png) 
+
+ 观察服务端侧的控制台，我们可以看到，在客户端第一次发来消息的时候， `AuthHandler` 判断当前用户已通过身份认证，直接移除掉自身，移除掉之后，回调 `handlerRemoved`，这块内容也是属于上小节我们学习的 ChannelHandler 生命周期的一部分 
+
+
+
+### 无身份认证的演示
+
+接下来，我们再来演示一下，客户端在未登录的情况下发送消息到服务端，我们到 `LoginResponseHandler` 中，删除发送登录指令的逻辑：
+
+```
+public class LoginResponseHandler extends SimpleChannelInboundHandler<LoginResponsePacket> {
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        // 创建登录对象
+        LoginRequestPacket loginRequestPacket = new LoginRequestPacket();
+        loginRequestPacket.setUserId(UUID.randomUUID().toString());
+        loginRequestPacket.setUsername("flash");
+        loginRequestPacket.setPassword("pwd");
+
+        // 删除登录的逻辑
+//        ctx.channel().writeAndFlush(loginRequestPacket);
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        System.out.println("客户端连接被关闭!");
+    }
+}
+```
+
+我们把客户端向服务端写登录指令的逻辑进行删除，然后覆盖一下 `channelInactive()` 方法，用于验证客户端连接是否会被关闭。
+
+接下来，我们先运行服务端，再运行客户端，并且在客户端的控制台输入文本之后发送给服务端
+
+这个时候服务端与客户端控制台的输出分别为：
+
+客户端
+
+![](38.png)
+
+服务端
+
+![](39.png) 
+
+由此看到，客户端如果第一个指令为非登录指令，`AuthHandler` 直接将客户端连接关闭，并且，从上小节，我们学到的有关 ChannelHandler 的生命周期相关的内容中也可以看到，服务端侧的 `handlerRemoved()` 方法和客户端侧代码的 `channelInActive()` 会被回调到。
+
+关于 ChannelHandler 的热插拔机制相关的内容我们就暂且讲到这，最后，我们来对本小节内容做下总结。
+
+## 总结
+
+1. 如果有很多业务逻辑的 handler 都要进行某些相同的操作，我们完全可以抽取出一个 handler 来单独处理
+2. 如果某一个独立的逻辑在执行几次之后（这里是一次）不需要再执行了，那么我们可以通过 ChannelHandler 的热插拔机制来实现动态删除逻辑，应用程序性能处理更为高效
+
+## 问答
+
+ 如果客户端也维护了一个登录状态，并且在已经登录状态下把AuthHandler去除了，然后如果服务端突然认为该客户端没有登录，此时客户端需要重新登录怎么办？AuthHandler还能恢复使用吗？ 
+
+答:  可以断开重新连接 
+
+
+
+ 请问，服务端主动断开连接之后客户端如何得到连接被断开的通知 
+
+ 一样可以在客户端代码中的 channelInActive 回调里面监听 
+
+ 
+
+# 客户端互聊原理与实现
+
+ 在开始本小节之前，我们先来看一下本小节学完之后，单聊的实现的效果是什么样的？ 
+
+## 最终效果
+
+服务端
+
+![](40.png) 
+
+服务端启动之后，两个客户端陆续登录
+
+客户端 1
+
+![](41.png) 
+
+
+
+ 客户端 2 
+
+![](42.png) 
+
+1. 客户端启动之后，我们在控制台输入用户名，服务端随机分配一个 userId 给客户端，这里我们省去了通过账号密码注册的过程，userId 就在服务端随机生成了，生产环境中可能会持久化在数据库，然后每次通过账号密码去“捞”。
+2. 当有两个客户端登录成功之后，在控制台输入`userId + 空格 + 消息`，这里的 userId 是消息接收方的标识， 消息接收方的控制台接着就会显示另外一个客户端发来的消息。
+
+一对一单聊的本质其实就这么简单，稍加改动其实就可以用在生产环境下，下面，我们就来一起学习一下如何实现控制台一对一单聊
+
+
+
+## 一对一单聊原理
+
+![](43.png) 
+
+1. 如上图，A 要和 B 聊天，首先 A 和 B 需要与服务器建立连接，然后进行一次登录流程，**服务端保存用户标识和 TCP 连接的映射关系**。
+2. A 发消息给 B，首先需要将带有 B 标识的消息数据包发送到服务器，然后服务器从消息数据包中拿到 B 的标识，找到对应的 B 的连接，将消息发送给 B。
+
+原理掌握之后，接下来我们就来逐个实现这里面的逻辑
+
+
+
+## 一对一单聊实现
+
+### 用户登录状态与 channel 的绑定
+
+ LoginRequestHandler .java
+
+```java
+protected void channelRead0(ChannelHandlerContext ctx, LoginRequestPacket loginRequestPacket) {
+    LoginResponsePacket loginResponsePacket = xxx;
+    String userId = randomUserId();
+    loginResponsePacket.setUserId(userId);//userid是服务端生成一个随机的,然后发送给客户端告诉它userid
+    SessionUtil.bindSession(new Session(userId, loginRequestPacket.getUserName()), ctx.channel());
+
+    // 登录响应
+    ctx.channel().writeAndFlush(loginResponsePacket);
+}
+
+// 用户断线之后取消绑定
+public void channelInactive(ChannelHandlerContext ctx) {
+    SessionUtil.unBindSession(ctx.channel());
+}
+```
+
+ 登录成功之后，服务端创建一个 `Session` 对象，这个对象表示用户当前的会话信息，在我们这个应用程序里面，`Session` 只有两个字段  Session .java
+
+```java
+public class Session {
+    // 用户唯一性标识
+    private String userId;
+    private String userName;
+}
+```
+
+实际生产环境中 `Session` 中的字段可能较多，比如头像 url，年龄，性别等等。
+
+然后，我们调用 `SessionUtil.bindSession()` 保存用户的会话信息，具体实现如下
+
+```java
+public class SessionUtil {
+    // userId -> channel 的映射
+    private static final Map<String, Channel> userIdChannelMap = new ConcurrentHashMap<>();
+
+
+    public static void bindSession(Session session, Channel channel) {
+        userIdChannelMap.put(session.getUserId(), channel);
+        channel.attr(Attributes.SESSION).set(session);
+    }
+
+    public static void unBindSession(Channel channel) {
+        if (hasLogin(channel)) {
+            userIdChannelMap.remove(getSession(channel).getUserId());
+            channel.attr(Attributes.SESSION).set(null);
+        }
+    }
+    
+    public static boolean hasLogin(Channel channel) {
+
+        return channel.hasAttr(Attributes.SESSION);
+    }
+
+    public static Session getSession(Channel channel) {
+
+        return channel.attr(Attributes.SESSION).get();
+    }
+
+    public static Channel getChannel(String userId) {
+
+        return userIdChannelMap.get(userId);
+    }
+}
+```
+
+
+
+1. `SessionUtil` 里面维持了一个 useId ---> channel 的映射 map，调用 `bindSession()` 方法的时候，在 map 里面保存这个映射关系，`SessionUtil` 还提供了 `getChannel()` 方法，这样就可以通过 userId 拿到对应的 channel。
+2. 除了在 map 里面维持映射关系之外，在 `bindSession()` 方法中，我们还给 channel 附上了一个属性，这个属性就是当前用户的 `Session`，我们也提供了 `getSession()` 方法，非常方便地拿到对应 channel 的会话信息。
+3. 这里的 `SessionUtil` 其实就是前面小节的 `LoginUtil`，这里重构了一下，其中 `hasLogin()` 方法，只需要判断当前是否有用户的会话信息即可。
+4. 在 `LoginRequestHandler` 中，我们还重写了 `channelInactive()` 方法，用户下线之后，我们需要在内存里面自动删除 userId 到 channel 的映射关系，这是通过调用 `SessionUtil.unBindSession()` 来实现的。
+
+ 关于用户会话信息的保存的逻辑其实就这么多，总结一点就是：登录的时候保存会话信息，登出的时候删除会话信息，接下来，我们就来实现服务端接收消息并转发的逻辑。 
+
+## 服务端接收消息并转发的实现
+
+我们重新来定义一下客户端发送给服务端的消息的数据包格式
+
+ MessageRequestPacket .JAVA
+
+```java
+public class MessageRequestPacket extends Packet {
+    private String toUserId;//新增了这个
+    private String message;
+}
+```
+
+ 数据包格式很简单，`toUserId` 表示要发送给哪个用户，`message` 表示具体内容，接下来，我们来看一下服务端的消息处理 handler 是如何来处理消息的 
+
+ MessageRequestHandler .java
+
+```java
+public class MessageRequestHandler extends SimpleChannelInboundHandler<MessageRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, MessageRequestPacket messageRequestPacket) {
+        // 1.拿到消息发送方的会话信息
+        Session session = SessionUtil.getSession(ctx.channel());
+
+        // 2.通过消息发送方的会话信息构造要发送的消息
+        MessageResponsePacket messageResponsePacket = new MessageResponsePacket();
+        messageResponsePacket.setFromUserId(session.getUserId());
+        messageResponsePacket.setFromUserName(session.getUserName());
+        messageResponsePacket.setMessage(messageRequestPacket.getMessage());
+
+        // 3.拿到消息接收方的 channel
+        Channel toUserChannel = SessionUtil.getChannel(messageRequestPacket.getToUserId());
+
+        // 4.将消息发送给消息接收方
+        if (toUserChannel != null && SessionUtil.hasLogin(toUserChannel)) {
+            toUserChannel.writeAndFlush(messageResponsePacket);
+        } else {
+            System.err.println("[" + messageRequestPacket.getToUserId() + "] 不在线，发送失败!");
+        }
+    }
+}
+```
+
+1. 服务端在收到客户端发来的消息之后，首先拿到当前用户，也就是消息发送方的会话信息。
+2. 拿到消息发送方的会话信息之后，构造一个发送给客户端的消息对象 `MessageResponsePacket`，填上发送消息方的用户标识、昵称、消息内容。
+3. 通过消息接收方的标识拿到对应的 channel。
+4. 如果消息接收方当前是登录状态，直接发送，如果不在线，控制台打印出一条警告消息。
+
+这里，服务端的功能相当于消息转发：收到一个客户端的消息之后，构建一条发送给另一个客户端的消息，接着拿到另一个客户端的 channel，然后通过 `writeAndFlush()` 写出。接下来，我们再来看一下客户端收到消息之后的逻辑处理。
+
+ MessageResponseHandler .java
+
+```java
+public class MessageResponseHandler extends SimpleChannelInboundHandler<MessageResponsePacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, MessageResponsePacket messageResponsePacket) {
+        String fromUserId = messageResponsePacket.getFromUserId();
+        String fromUserName = messageResponsePacket.getFromUserName();
+        System.out.println(fromUserId + ":" + fromUserName + " -> " + messageResponsePacket .getMessage());
+    }
+}
+```
+
+ 客户端收到消息之后，只是把当前消息打印出来，这里把发送方的用户标识打印出来是为了方便我们在控制台回消息的时候，可以直接复制 ^ ^，到了这里，所有的核心逻辑其实已经完成了，我们还差最后一环：在客户端的控制台进行登录和发送消息逻辑。 
+
+## 客户端收消息的逻辑处理
+
+   我们回到客户端的启动类，改造一下控制台的逻辑 
+
+ NettyClient .java
+
+```java
+private static void startConsoleThread(Channel channel) {
+    Scanner sc = new Scanner(System.in);
+    LoginRequestPacket loginRequestPacket = new LoginRequestPacket();
+
+    new Thread(() -> {
+        while (!Thread.interrupted()) {
+            if (!SessionUtil.hasLogin(channel)) {
+                System.out.print("输入用户名登录: ");
+                String username = sc.nextLine();
+                loginRequestPacket.setUserName(username);
+
+                // 密码使用默认的
+                loginRequestPacket.setPassword("pwd");
+
+                // 发送登录数据包
+                channel.writeAndFlush(loginRequestPacket);
+                waitForLoginResponse();
+            } else {
+                String toUserId = sc.next();
+                String message = sc.next();
+                channel.writeAndFlush(new MessageRequestPacket(toUserId, message));
+            }
+        }
+    }).start();
+}
+
+private static void waitForLoginResponse() {
+    try {
+        Thread.sleep(1000);
+    } catch (InterruptedException ignored) {
+    }
+}
+```
+
+我们在客户端启动的时候，起一个线程
+
+1. 如果当前用户还未登录，我们在控制台输入一个用户名，然后构造一个登录数据包发送给服务器，发完之后，我们等待一个超时时间，可以当做是登录逻辑的最大处理时间，这里就简单粗暴点了。
+2. 如果当前用户已经是登录状态，我们可以在控制台输入消息接收方的 userId，然后输入一个空格，再输入消息的具体内容，然后，我们就可以构建一个消息数据包，发送到服务端。
+
+![](44.png) 
+
+![](45.png) 
+
+![](46.png) 
+
+
+
+关于单聊的原理和实现，这小节到这里就结束了，最后，我们对本小节内容做一下总结。
+
+## 总结
+
+1. 我们定义一个会话类 `Session` 用户维持用户的登录信息，用户登录的时候绑定 Session 与 channel，用户登出或者断线的时候解绑 Session 与 channel。
+2. 服务端处理消息的时候，通过消息接收方的标识，拿到消息接收方的 channel，调用 `writeAndFlush()` 将消息发送给消息接收方。
+
+## 问答： 
+
+ 如果把用户和channel的映射持久化到mysql中，channel怎么存？ 
+
+
+
+ 为什么要在LoginResponseHandler和LoginRequestHandler的channelRead0方法中，都进行bindSession？ 
+
+ 答: 一个是客户端侧的代码，一个是服务端侧的代码哦 。 2者是分开运行的，不同的实例，可看成2个不同的应用程序，内存都不在一起的。 
+
+# 群聊的发起与通知
+
+ 我们依然是先来看一下最终的效果是什么样的。 
+
+## 效果
+
+ 服务端 
+
+![](47.png) 
+
+ 创建群聊的客户端 
+
+![](48.png) 
+
+ 其他客户端 
+
+![](49.png) 
+
+
+
+1. 首先，依然是三位用户依次登录到服务器，分别是闪电侠、极速、萨维塔。
+2. 然后，我们在闪电侠的控制台输入 `createGroup` 指令，提示创建群聊需要输入 userId 列表，然后我们输入以英文逗号分隔的 userId。
+3. 群聊创建成功之后，分别在服务端和三个客户端弹出提示消息，包括群的 ID 以及群里各位用户的昵称。
+
+## 群聊原理
+
+群聊的原理我们在 [仿微信 IM 系统简介](https://juejin.im/book/6844733738119593991/section/6844733738224451591) 已经学习过，我们再来重温一下
+
+群聊指的是一个组内多个用户之间的聊天，一个用户发到群组的消息会被组内任何一个成员接收，下面我们来看一下群聊的基本流程。
+
+![](51.png) 
+
+如上图，要实现群聊，其实和单聊类似
+
+1. A，B，C 依然会经历登录流程，服务端保存用户标识对应的 TCP 连接
+2. A 发起群聊的时候，将 A，B，C 的标识发送至服务端，服务端拿到之后建立一个群聊 ID，然后把这个 ID 与 A，B，C 的标识绑定
+3. 群聊里面任意一方在群里聊天的时候，将群聊 ID 发送至服务端，服务端拿到群聊 ID 之后，取出对应的用户标识，遍历用户标识对应的 TCP 连接，就可以将消息发送至每一个群聊成员
+
+这一小节，我们把重点放在创建一个群聊上，由于控制台输入的指令越来越多，因此在正式开始之前，我们先对我们的控制台程序稍作重构。
+
+## 控制台程序重构
+
+### 创建控制台命令执行器
+
+首先，我们把在控制台要执行的操作抽象出来，抽象出一个接口
+
+> ConsoleCommand.java
+
+```java
+public interface ConsoleCommand {
+    void exec(Scanner scanner, Channel channel);
+}
+```
+
+### 管理控制台命令执行器
+
+接着，我们创建一个管理类来对这些操作进行管理。
+
+> ConsoleCommandManager.java
+
+```java
+public class ConsoleCommandManager implements ConsoleCommand {
+    private Map<String, ConsoleCommand> consoleCommandMap;
+
+    public ConsoleCommandManager() {
+        consoleCommandMap = new HashMap<>();
+        consoleCommandMap.put("sendToUser", new SendToUserConsoleCommand());
+        consoleCommandMap.put("logout", new LogoutConsoleCommand());
+        consoleCommandMap.put("createGroup", new CreateGroupConsoleCommand());
+    }
+
+    @Override
+    public void exec(Scanner scanner, Channel channel) {
+        //  获取第一个指令
+        String command = scanner.next();
+
+        ConsoleCommand consoleCommand = consoleCommandMap.get(command);
+
+        if (consoleCommand != null) {
+            consoleCommand.exec(scanner, channel);
+        } else {
+            System.err.println("无法识别[" + command + "]指令，请重新输入!");
+        }
+    }
+}
+```
+
+1. 我们在这个管理类中，把所有要管理的控制台指令都塞到一个 map 中。
+2. 执行具体操作的时候，我们先获取控制台第一个输入的指令，这里以字符串代替，比较清晰（这里我们已经实现了上小节课后思考题中的登出操作），然后通过这个指令拿到对应的控制台命令执行器执行。
+
+这里我们就拿创建群聊举个栗子：首先，我们在控制台输入 `createGroup`，然后我们按下回车，就会进入 `CreateGroupConsoleCommand` 这个类进行处理
+
+> CreateGroupConsoleCommand.java
+
+```java
+public class CreateGroupConsoleCommand implements ConsoleCommand {
+
+    private static final String USER_ID_SPLITER = ",";
+
+    @Override
+    public void exec(Scanner scanner, Channel channel) {
+        CreateGroupRequestPacket createGroupRequestPacket = new CreateGroupRequestPacket();
+
+        System.out.print("【拉人群聊】输入 userId 列表，userId 之间英文逗号隔开：");
+        String userIds = scanner.next();
+        createGroupRequestPacket.setUserIdList(Arrays.asList(userIds.split(USER_ID_SPLITER)));
+        channel.writeAndFlush(createGroupRequestPacket);
+    }
+
+}
+```
+
+进入到 `CreateGroupConsoleCommand` 的逻辑之后，我们创建了一个群聊创建请求的数据包，然后提示输入以英文逗号分隔的 userId 的列表，填充完这个数据包之后，调用 `writeAndFlush()` 我们就可以发送一个创建群聊的指令到服务端。
+
+最后，我们再来看一下经过我们的改造，客户端的控制台线程相关的代码。
+
+> NettyClient.java
+
+```java
+private static void startConsoleThread(Channel channel) {
+    ConsoleCommandManager consoleCommandManager = new ConsoleCommandManager();
+    LoginConsoleCommand loginConsoleCommand = new LoginConsoleCommand();
+    Scanner scanner = new Scanner(System.in);
+
+    new Thread(() -> {
+        while (!Thread.interrupted()) {
+            if (!SessionUtil.hasLogin(channel)) {
+                loginConsoleCommand.exec(scanner, channel);
+            } else {
+                consoleCommandManager.exec(scanner, channel);
+            }
+        }
+    }).start();
+}
+```
+
+抽取出控制台指令执行器之后，客户端控制台逻辑已经相对之前清晰很多了，可以非常方便地在控制台模拟各种在 IM 聊天窗口的操作，接下来，我们就来看一下如何创建群聊。
+
+## 创建群聊的实现
+
+### 客户端发送创建群聊请求
+
+通过我们前面讲述控制台逻辑的重构，我们已经了解到我们是发送一个 `CreateGroupRequestPacket` 数据包到服务端，这个数据包的格式为：
+
+> CreateGroupRequestPacket.java
+
+```java
+public class CreateGroupRequestPacket extends Packet {
+    private List<String> userIdList;
+}
+```
+
+它只包含了一个列表，这个列表就是需要拉取群聊的用户列表，接下来我们看下服务端如何处理的。
+
+### 服务端处理创建群聊请求
+
+我们依然是创建一个 handler 来处理新的指令。
+
+> NettyServer.java
+
+```java
+.childHandler(new ChannelInitializer<NioSocketChannel>() {
+    protected void initChannel(NioSocketChannel ch) {
+        // ...
+        // 添加一个 handler 
+        ch.pipeline().addLast(new CreateGroupRequestHandler());
+        // ...
+    }
+});
+```
+
+接下来，我们来看一下这个 handler 具体做哪些事情
+
+> CreateGroupRequestHandler.java
+
+```java
+public class CreateGroupRequestHandler extends SimpleChannelInboundHandler<CreateGroupRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, CreateGroupRequestPacket createGroupRequestPacket) {
+        List<String> userIdList = createGroupRequestPacket.getUserIdList();
+
+        List<String> userNameList = new ArrayList<>();
+        // 1. 创建一个 channel 分组
+        ChannelGroup channelGroup = new DefaultChannelGroup(ctx.executor());
+
+        // 2. 筛选出待加入群聊的用户的 channel 和 userName
+        for (String userId : userIdList) {
+            Channel channel = SessionUtil.getChannel(userId);
+            if (channel != null) {
+                channelGroup.add(channel);
+                userNameList.add(SessionUtil.getSession(channel).getUserName());
+            }
+        }
+
+        // 3. 创建群聊创建结果的响应
+        CreateGroupResponsePacket createGroupResponsePacket = new CreateGroupResponsePacket();
+        createGroupResponsePacket.setSuccess(true);
+        createGroupResponsePacket.setGroupId(IDUtil.randomId());
+        createGroupResponsePacket.setUserNameList(userNameList);
+
+        // 4. 给每个客户端发送拉群通知
+        channelGroup.writeAndFlush(createGroupResponsePacket);
+
+        System.out.print("群创建成功，id 为[" + createGroupResponsePacket.getGroupId() + "], ");
+        System.out.println("群里面有：" + createGroupResponsePacket.getUserNameList());
+
+    }
+}
+```
+
+整个过程可以分为以下几个过程
+
+1. 首先，我们这里创建一个 `ChannelGroup`。这里简单介绍一下 `ChannelGroup`：它可以把多个 chanel 的操作聚合在一起，可以往它里面添加删除 channel，可以进行 channel 的批量读写，关闭等操作，详细的功能读者可以自行翻看这个接口的方法。这里我们一个群组其实就是一个 channel 的分组集合，使用 `ChannelGroup` 非常方便。
+2. 接下来，我们遍历待加入群聊的 userId，如果存在该用户，就把对应的 channel 添加到 `ChannelGroup` 中，用户昵称也添加到昵称列表中。
+3. 然后，我们创建一个创建群聊响应的对象，其中 `groupId` 是随机生成的，群聊创建结果一共三个字段，这里就不展开对这个类进行说明了。
+4. 最后，我们调用 `ChannelGroup` 的聚合发送功能，将拉群的通知批量地发送到客户端，接着在服务端控制台打印创建群聊成功的信息，至此，服务端处理创建群聊请求的逻辑结束。
+
+我们接下来再来看一下客户端处理创建群聊响应。
+
+
+
+### 客户端处理创建群聊响应
+
+客户端依然也是创建一个 handler 来处理新的指令。
+
+> NettyClient.java
+
+```java
+.handler(new ChannelInitializer<SocketChannel>() {
+    @Override
+    public void initChannel(SocketChannel ch) {
+        // ...
+        // 添加一个新的 handler 来处理创建群聊成功响应的指令
+        ch.pipeline().addLast(new CreateGroupResponseHandler());
+        // ...
+    }
+});
+```
+
+然后，在我们的应用程序里面，我们仅仅是把创建群聊成功之后的具体信息打印出来。
+
+> CreateGroupResponseHandler.java
+
+```java
+public class CreateGroupResponseHandler extends SimpleChannelInboundHandler<CreateGroupResponsePacket> {
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, CreateGroupResponsePacket createGroupResponsePacket) {
+        System.out.print("群创建成功，id 为[" + createGroupResponsePacket.getGroupId() + "], ");
+        System.out.println("群里面有：" + createGroupResponsePacket.getUserNameList());
+    }
+}
+```
+
+在实际生产环境中，`CreateGroupResponsePacket` 对象里面可能有更多的信息，然后以上逻辑的处理也会更加复杂，不过我们这里已经能说明问题了。
+
+到了这里，这小节的内容到这里就告一段落了，下小节，我们来学习群聊成员管理，包括添加删除成员，获取成员列表等等，最后，我们再对本小节内容做一下总结。
+
+## 总结
+
+1. 群聊的原理和单聊类似，无非都是通过标识拿到 channel。
+2. 本小节，我们重构了一下控制台的程序结构，在实际带有 UI 的 IM 应用中，我们输入的第一个指令其实就是对应我们点击 UI 的某些按钮或菜单的操作。
+3. 通过 `ChannelGroup`，我们可以很方便地对一组 channel 进行批量操作。
+
+ 
+
+# 群聊的成员管理(加入退出获取成员列表)
+
+ 在开始之前，我们依然是先来看一下最终的效果。 
+
+ 服务端 
+
+![](52.png) 
+
+ 从服务端可以看到，闪电侠、逆闪、极速先后登录到服务器，然后随后，闪电侠创建一个群聊，接下来，萨维塔也登录了。这里，客户端我们只展示闪电侠和萨维塔的控制台界面 
+
+ 客户端 - 闪电侠 
+
+![](53.png) 
+
+ 客户端 - 萨维塔 
+
+![](54.png) 
+
+我们可以看到最终效果是四位用户登录成功之后
+
+1. 闪电侠先拉逆闪和极速加入了群聊，控制台输出群创建成功的消息。
+2. 随后在萨维塔的控制台输入 "joinGroup" 之后再输入群聊的 id，加入群聊，控制台显示加入群成功。
+3. 在闪电侠的控制台输入 "listGroupMembers" 之后再输入群聊的 id，展示了当前群聊成员包括了极速、萨维塔、闪电侠、逆闪。
+4. 萨维塔的控制台输入 "quitGroup" 之后再输入群聊的 id，退出群聊，控制台显示退群成功。
+5. 最后在闪电侠的控制台输入 "listGroupMembers" 之后再输入群聊的 ID，展示了当前群聊成员已无萨维塔。
+
+接下来，我们就来实现加入群聊，退出群聊，获取成员列表三大功能。
+
+## 群的加入
+
+### 控制台添加群加入命令处理器
+
+> JoinGroupConsoleCommand.java
+
+```java
+public class JoinGroupConsoleCommand implements ConsoleCommand {
+    @Override
+    public void exec(Scanner scanner, Channel channel) {
+        JoinGroupRequestPacket joinGroupRequestPacket = new JoinGroupRequestPacket();
+
+        System.out.print("输入 groupId，加入群聊：");
+        String groupId = scanner.next();
+
+        joinGroupRequestPacket.setGroupId(groupId);
+        channel.writeAndFlush(joinGroupRequestPacket);
+    }
+}
+```
+
+按照前面两小节的套路，我们在控制台先添加群加入命令处理器 `JoinGroupConsoleCommand`，在这个处理器中，我们创建一个指令对象 `JoinGroupRequestPacket`，填上群 id 之后，将数据包发送至服务端。之后，我们将该控制台指令添加到 `ConsoleCommandManager`。
+
+> ConsoleCommandManager.java
+
+```java
+public class ConsoleCommandManager implements ConsoleCommand {
+    
+    public ConsoleCommandManager() {
+        // ...
+        consoleCommandMap.put("joinGroup", new JoinGroupConsoleCommand());
+        // ...
+    }
+}
+```
+
+接下来，就轮到服务端来处理加群请求了。
+
+### 服务端处理群加入请求
+
+服务端的 pipeline 中添加对应的 handler - `JoinGroupRequestHandler`
+
+> NettyServer.java
+
+```java
+.childHandler(new ChannelInitializer<NioSocketChannel>() {
+    protected void initChannel(NioSocketChannel ch) {
+        // 添加加群请求处理器
+        ch.pipeline().addLast(new JoinGroupRequestHandler());
+        // ..
+    }
+});
+```
+
+`JoinGroupRequestHandler` 的具体逻辑为
+
+> JoinGroupRequestHandler.java
+
+```java
+public class JoinGroupRequestHandler extends SimpleChannelInboundHandler<JoinGroupRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, JoinGroupRequestPacket requestPacket) {
+        // 1. 获取群对应的 channelGroup，然后将当前用户的 channel 添加进去
+        String groupId = requestPacket.getGroupId();
+        ChannelGroup channelGroup = SessionUtil.getChannelGroup(groupId);
+        channelGroup.add(ctx.channel());
+
+        // 2. 构造加群响应发送给客户端
+        JoinGroupResponsePacket responsePacket = new JoinGroupResponsePacket();
+
+        responsePacket.setSuccess(true);
+        responsePacket.setGroupId(groupId);
+        ctx.channel().writeAndFlush(responsePacket);
+    }
+}
+```
+
+1. 首先，通过 groupId 拿到对应的 `ChannelGroup`，之后，只需要调用 `ChannelGroup.add()` 方法，将加入群聊的用户的 channel 添加进去，服务端即完成了加入群聊的逻辑。
+2. 然后，构造一个加群响应，填入 groupId 之后，调用 `writeAndFlush()` 发送给加入群聊的客户端。
+
+###  客户端处理群加入响应
+
+我们在客户端的 pipeline 中添加对应的 handler - `JoinGroupResponseHandler` 来处理加群之后的响应
+
+> NettyClient.java
+
+```java
+.handler(new ChannelInitializer<SocketChannel>() {
+    @Override
+    public void initChannel(SocketChannel ch) {
+        // 添加加群响应处理器
+        ch.pipeline().addLast(new JoinGroupResponseHandler());
+        // ...
+    }
+});
+```
+
+`JoinGroupResponseHandler` 对应的逻辑为
+
+> JoinGroupResponseHandler.java
+
+```java
+public class JoinGroupResponseHandler extends SimpleChannelInboundHandler<JoinGroupResponsePacket> {
+    protected void channelRead0(ChannelHandlerContext ctx, JoinGroupResponsePacket responsePacket) {
+        if (responsePacket.isSuccess()) {
+            System.out.println("加入群[" + responsePacket.getGroupId() + "]成功!");
+        } else {
+            System.err.println("加入群[" + responsePacket.getGroupId() + "]失败，原因为：" + responsePacket.getReason());
+        }
+    }
+}
+```
+
+该处理器的逻辑很简单，只是简单的将加群的结果输出到控制台，实际生产环境 IM 可能比这个要复杂，但是修改起来也是非常容易的。至此，加群相关的逻辑到这里就结束了。
+
+## 群的退出
+
+关于群的退出和群的加入逻辑非常类似，这里展示一下关键代码，完整代码 [groupchat_join_quit](groupchat_join_quit)  
+
+服务端退群的核心逻辑为 `QuitGroupRequestHandler`
+
+> QuitGroupRequestHandler.java
+
+```java
+public class QuitGroupRequestHandler extends SimpleChannelInboundHandler<QuitGroupRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, QuitGroupRequestPacket requestPacket) {
+        // 1. 获取群对应的 channelGroup，然后将当前用户的 channel 移除
+        String groupId = requestPacket.getGroupId();
+        ChannelGroup channelGroup = SessionUtil.getChannelGroup(groupId);
+        channelGroup.remove(ctx.channel());
+
+        // 2. 构造退群响应发送给客户端
+        QuitGroupResponsePacket responsePacket = new QuitGroupResponsePacket();
+
+        responsePacket.setGroupId(requestPacket.getGroupId());
+        responsePacket.setSuccess(true);
+        ctx.channel().writeAndFlush(responsePacket);
+
+    }
+}
+```
+
+从上面代码其实可以看到，`QuitGroupRequestHandler` 和 `JoinGroupRequestHandler` 其实是一个逆向的过程
+
+1. 首先，通过 groupId 拿到对应的 `ChannelGroup`，之后，只需要调用 `ChannelGroup.remove()` 方法，将当前用户的 channel 删除，服务端即完成了退群的逻辑。
+2. 然后，构造一个退群响应，填入 groupId 之后，调用 `writeAndFlush()` 发送给退群的客户端。
+
+至此，加群和退群的逻辑到这里就结束了，最后，我们来看一下获取成员列表的逻辑。
+
+## 获取成员列表
+
+### 控制台添加获取群列表命令处理器
+
+> ListGroupMembersConsoleCommand.java
+
+```java
+public class ListGroupMembersConsoleCommand implements ConsoleCommand {
+
+    @Override
+    public void exec(Scanner scanner, Channel channel) {
+        ListGroupMembersRequestPacket listGroupMembersRequestPacket = new ListGroupMembersRequestPacket();
+
+        System.out.print("输入 groupId，获取群成员列表：");
+        String groupId = scanner.next();
+
+        listGroupMembersRequestPacket.setGroupId(groupId);
+        channel.writeAndFlush(listGroupMembersRequestPacket);
+    }
+}
+```
+
+依旧按照一定的的套路，我们在控制台先添加获取群列表命令处理器 `ListGroupMembersConsoleCommand`，在这个处理器中，我们创建一个指令对象 `ListGroupMembersRequestPacket`，填上群 id 之后，将数据包发送至服务端。之后，我们将该控制台指令添加到 `ConsoleCommandManager`。
+
+> ConsoleCommandManager.java
+
+```java
+public class ConsoleCommandManager implements ConsoleCommand {
+    
+    public ConsoleCommandManager() {
+        // ...
+        consoleCommandMap.put("listGroupMembers", new ListGroupMembersConsoleCommand());
+        // ...
+    }
+}
+```
+
+接着，轮到服务端来处理获取成员列表请求。
+
+### 服务端处理获取成员列表请求
+
+服务端的 pipeline 中添加对应的 handler - `ListGroupMembersRequestHandler`
+
+> NettyServer.java
+
+```java
+.childHandler(new ChannelInitializer<NioSocketChannel>() {
+    protected void initChannel(NioSocketChannel ch) {
+        // 添加获取群成员请求处理器
+        ch.pipeline().addLast(new ListGroupMembersRequestHandler());
+        // ..
+    }
+});
+```
+
+`ListGroupMembersRequestHandler` 的具体逻辑为
+
+> ListGroupMembersRequestHandler.java
+
+```java
+public class ListGroupMembersRequestHandler extends SimpleChannelInboundHandler<ListGroupMembersRequestPacket> {
+    protected void channelRead0(ChannelHandlerContext ctx, JoinGroupRequestPacket requestPacket) {
+        // 1. 获取群的 ChannelGroup
+        String groupId = requestPacket.getGroupId();
+        ChannelGroup channelGroup = SessionUtil.getChannelGroup(groupId);
+
+        // 2. 遍历群成员的 channel，对应的 session，构造群成员的信息
+        List<Session> sessionList = new ArrayList<>();
+        for (Channel channel : channelGroup) {
+            Session session = SessionUtil.getSession(channel);
+            sessionList.add(session);
+        }
+
+        // 3. 构建获取成员列表响应写回到客户端
+        ListGroupMembersResponsePacket responsePacket = new ListGroupMembersResponsePacket();
+
+        responsePacket.setGroupId(groupId);
+        responsePacket.setSessionList(sessionList);
+        ctx.channel().writeAndFlush(responsePacket);
+    }
+}
+```
+
+1. 首先，我们通过 groupId 拿到对应的 `ChannelGroup`。
+2. 接着，我们创建一个 sessionList 用来装载群成员信息，我们遍历 channel 的每个 session，把对应的用户信息装到 sessionList 中，实际生产环境中，这里可能会构造另外一个对象来装载用户信息而非 Session，这里我们就简单粗暴点了，改造起来不难。
+3. 最后，我们构造一个获取成员列表的响应指令数据包，填入 groupId 和群成员的信息之后，调用 `writeAndFlush()` 发送给发起获取成员列表的客户端。
+
+最后，就剩下客户端来处理获取群成员列表的响应了。
+
+### 客户端处理获取成员列表响应
+
+套路和前面一样，我们在客户端的 pipeline 中添加一个 handler - `ListGroupMembersResponseHandler`
+
+> NettyClient.java
+
+```java
+.handler(new ChannelInitializer<SocketChannel>() {
+    public void initChannel(SocketChannel ch) {
+        // ...
+        // 添加获取群成员响应处理器
+        ch.pipeline().addLast(new ListGroupMembersResponseHandler());
+        // ...
+    }
+});
+```
+
+而我们这里 `ListGroupMembersResponseHandler` 的逻辑也只是在控制台展示一下群成员的信息
+
+> ListGroupMembersResponseHandler.java
+
+```java
+public class ListGroupMembersResponseHandler extends SimpleChannelInboundHandler<ListGroupMembersResponsePacket> {
+    
+    protected void channelRead0(ChannelHandlerContext ctx, ListGroupMembersResponsePacket responsePacket) {
+        System.out.println("群[" + responsePacket.getGroupId() + "]中的人包括：" + responsePacket.getSessionList());
+    }
+}
+```
+
+至此，群成员加入退出，获取群成员列表对应的逻辑到这里就全部实现了，其实从这小节和前面的一两个小节大家其实可以看到，我们添加一个新功能其实是有一定的套路的，我们在最后的总结给出这个套路。
+
+## 总结
+
+添加一个服务端和客户端交互的新功能只需要遵循以下的步骤：
+
+1. 创建控制台指令对应的 `ConsoleCommand` 并添加到 `ConsoleCommandManager`。
+2. 控制台输入指令和数据之后填入协议对应的指令数据包 - `xxxRequestPacket`，将请求写到服务端。
+3. 服务端创建对应的 `xxxRequestPacketHandler` 并添加到服务端的 pipeline 中，在 `xxxRequestPacketHandler` 处理完之后构造对应的 `xxxResponsePacket` 发送给客户端。
+4. 客户端创建对应的 `xxxResponsePacketHandler` 并添加到客户端的 pipeline 中，最后在 `xxxResponsePacketHandler` 完成响应的处理。
+5. 最后，最容易忽略的一点就是，新添加 `xxxPacket` 别忘了完善编解码器 `PacketCodec` 中的 `packetTypeMap`！
+
+
+
+# 群聊消息的收发及 Netty 性能优化
+
+开始实现之前，我们还是先来看一下群聊的最终效果。
+
+> 服务端
+
+![](55.png) 
+
+ 闪电侠，逆闪，极速先后登录，然后闪电侠拉逆闪，极速和自己加入群聊，下面，我们来看一下各位客户端的控制台界面  
+
+> 客户端 - 闪电侠 
+
+![](56.png) 
+
+ 闪电侠第一个输入 "sendToGroup" 发送群消息。 
+
+> 客户端 - 逆闪 
+
+![](57.png) 
+
+ 逆闪第二个输入 "sendToGroup" 发送群消息，在前面已经收到了闪电侠的消息。 
+
+> 客户端 - 极速 
+
+![](58.png) 
+
+逆闪最后一个输入 "sendToGroup" 发送消息，在前面已经收到了闪电侠和逆闪的消息。
+
+1. 在闪电侠的控制台，输入 "sendToGroup" 指令之后，再输入 groupId + 空格 + 消息内容，发送消息给群里各位用户，随后，群组里的所有用户的控制台都显示了群消息。
+2. 随后，陆续在逆闪和极速的控制台做做相同的操作，群组里的所有用户的控制台陆续展示了群消息。
+
+这个实现过程和我们前面的套路一样，下面我们仅关注核心实现部分。
+
+## 群聊消息的收发的实现
+
+核心实现部分其实就是服务端处理群消息的 handler - `GroupMessageRequestHandler`
+
+> GroupMessageRequestHandler.java
+
+```java
+public class GroupMessageRequestHandler extends SimpleChannelInboundHandler<GroupMessageRequestPacket> {
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, GroupMessageRequestPacket requestPacket) {
+        // 1.拿到 groupId 构造群聊消息的响应
+        String groupId = requestPacket.getToGroupId();
+        GroupMessageResponsePacket responsePacket = new GroupMessageResponsePacket();
+        responsePacket.setFromGroupId(groupId);
+        responsePacket.setMessage(requestPacket.getMessage());
+        responsePacket.setFromUser(SessionUtil.getSession(ctx.channel()));
+
+
+        // 2. 拿到群聊对应的 channelGroup，写到每个客户端
+        ChannelGroup channelGroup = SessionUtil.getChannelGroup(groupId);
+        channelGroup.writeAndFlush(responsePacket);
+    }
+}
+```
+
+1. 首先，通过 groupId 构造群聊响应 `GroupMessageResponsePacket`，然后再把发送群聊的用户信息填入，这里的用户信息我们就直接复用与 channel 绑定的 session了。
+2. 然后，我们拿到对应群组的 `ChannelGroup`，通过 `writeAndFlush()` 写到客户端。
+
+完整代码[groupchat_receivemessage_optimization.zip](groupchat_receivemessage_optimization.zip) ，下面进入我们本小节的几个重要知识点，可以拿小本本开始记了。
+
+## 共享 handler
+
+在使用 Netty 完成了一个 IM 系统的核心功能之后，我们再来仔细看一下服务端
+
+> NettyServer.java
+
+```java
+serverBootstrap
+                .childHandler(new ChannelInitializer<NioSocketChannel>() {
+                    protected void initChannel(NioSocketChannel ch) {
+                        ch.pipeline().addLast(new Spliter());
+                        ch.pipeline().addLast(new PacketDecoder());
+                        ch.pipeline().addLast(new LoginRequestHandler());
+                        ch.pipeline().addLast(new AuthHandler());
+                        ch.pipeline().addLast(new MessageRequestHandler());
+                        ch.pipeline().addLast(new CreateGroupRequestHandler());
+                        ch.pipeline().addLast(new JoinGroupRequestHandler());
+                        ch.pipeline().addLast(new QuitGroupRequestHandler());
+                        ch.pipeline().addLast(new ListGroupMembersRequestHandler());
+                        ch.pipeline().addLast(new GroupMessageRequestHandler());
+                        ch.pipeline().addLast(new LogoutRequestHandler());
+                        ch.pipeline().addLast(new PacketEncoder());
+                    }
+                });
+```
+
+1. 我们看到，服务端的 pipeline 链里面已经有 12 个 handler，其中，与指令相关的 handler 有 9 个。
+2. Netty 在这里的逻辑是：每次有新连接到来的时候，都会调用 `ChannelInitializer` 的 `initChannel()` 方法，然后这里 9 个指令相关的 handler 都会被 new 一次。
+3. 我们可以看到，其实这里的每一个指令 handler，他们内部都是没有成员变量的，也就是说是无状态的，我们完全可以使用单例模式，即调用 `pipeline().addLast()` 方法的时候，都直接使用单例，不需要每次都 new，提高效率，也避免了创建很多小的对象。
+
+比如，我们拿 `LoginRequestHandler` 举例，来看一下如何改造
+
+> LoginRequestHandler.java
+
+```java
+// 1. 加上注解标识，表明该 handler 是可以多个 channel 共享的
+@ChannelHandler.Sharable
+public class LoginRequestHandler extends SimpleChannelInboundHandler<LoginRequestPacket> {
+
+    // 2. 构造单例
+    public static final LoginRequestHandler INSTANCE = new LoginRequestHandler();
+
+    protected LoginRequestHandler() {
+    }
+
+}
+```
+
+1. 首先，非常重要的一点，如果一个 handler 要被多个 channel 进行共享，必须要加上 `@ChannelHandler.Sharable` 显示地告诉 Netty，这个 handler 是支持多个 channel 共享的，否则会报错，读者可以自行尝试一下。
+2. 然后，我们仿照 Netty 源码里面单例模式的写法，构造一个单例模式的类。
+
+接着，我们在服务端的代理里面就可以这么写
+
+> NettyServer.java
+
+```java
+serverBootstrap
+        .childHandler(new ChannelInitializer<NioSocketChannel>() {
+            protected void initChannel(NioSocketChannel ch) {
+                // ...单例模式，多个 channel 共享同一个 handler
+                ch.pipeline().addLast(LoginRequestHandler.INSTANCE);
+                // ...
+            }
+        });
+```
+
+这样的话，每来一次新的连接，添加 handler 的时候就不需要每次都 new 了，剩下的 8 个 指令，读者可以自行尝试改造一下。
+
+## 压缩 handler - 合并编解码器
+
+当我们改造完了之后，我们再来看一下服务端代码
+
+> NettyServer.java
+
+```java
+serverBootstrap
+        .childHandler(new ChannelInitializer<NioSocketChannel>() {
+            protected void initChannel(NioSocketChannel ch) {
+                ch.pipeline().addLast(new Spliter());
+                ch.pipeline().addLast(new PacketDecoder());
+                ch.pipeline().addLast(LoginRequestHandler.INSTANCE);
+                ch.pipeline().addLast(AuthHandler.INSTANCE);
+                ch.pipeline().addLast(MessageRequestHandler.INSTANCE);
+                ch.pipeline().addLast(CreateGroupRequestHandler.INSTANCE);
+                ch.pipeline().addLast(JoinGroupRequestHandler.INSTANCE);
+                ch.pipeline().addLast(QuitGroupRequestHandler.INSTANCE);
+                ch.pipeline().addLast(ListGroupMembersRequestHandler.INSTANCE);
+                ch.pipeline().addLast(GroupMessageRequestHandler.INSTANCE);
+                ch.pipeline().addLast(LogoutRequestHandler.INSTANCE);
+                ch.pipeline().addLast(new PacketEncoder());
+            }
+        });
+```
+
+pipeline 中第一个 handler - `Spliter`，我们是无法动它的，因为他内部实现是与每个 `channel` 有关，每个 `Spliter` 需要维持每个 channel 当前读到的数据，也就是说他是有状态的。 而 `PacketDecoder` 与 `PacketEncoder` 我们是可以继续改造的，Netty 内部提供了一个类，叫做 `MessageToMessageCodec`，使用它可以让我们的编解码操作放到一个类里面去实现，首先我们定义一个 `PacketCodecHandler`
+
+> PacketCodecHandler.java
+
+```java
+@ChannelHandler.Sharable
+public class PacketCodecHandler extends MessageToMessageCodec<ByteBuf, Packet> {
+    public static final PacketCodecHandler INSTANCE = new PacketCodecHandler();
+
+    private PacketCodecHandler() {
+
+    }
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf byteBuf, List<Object> out) {
+        out.add(PacketCodec.INSTANCE.decode(byteBuf));
+    }
+
+    @Override
+    protected void encode(ChannelHandlerContext ctx, Packet packet, List<Object> out) {
+        ByteBuf byteBuf = ctx.channel().alloc().ioBuffer();
+        PacketCodec.INSTANCE.encode(byteBuf, packet);
+        out.add(byteBuf);
+    }
+}
+```
+
+1. 首先，这里 `PacketCodecHandler`，他是一个无状态的 handler，因此，同样可以使用单例模式来实现。
+2. 我们看到，我们需要实现 `decode()` 和 `encode()` 方法，decode 是将二进制数据 ByteBuf 转换为 java 对象 Packet，而 encode 操作是一个相反的过程，在 `encode()` 方法里面，我们调用了 channel 的 内存分配器手工分配了 `ByteBuf`。
+
+接着，`PacketDecoder` 和 `PacketEncoder`都可以删掉，我们的 server 端代码就成了如下的样子
+
+```java
+serverBootstrap
+        .childHandler(new ChannelInitializer<NioSocketChannel>() {
+            protected void initChannel(NioSocketChannel ch) {
+                ch.pipeline().addLast(new Spliter());
+                ch.pipeline().addLast(PacketCodecHandler.INSTANCE);
+                ch.pipeline().addLast(LoginRequestHandler.INSTANCE);
+                ch.pipeline().addLast(AuthHandler.INSTANCE);
+                ch.pipeline().addLast(MessageRequestHandler.INSTANCE);
+                ch.pipeline().addLast(CreateGroupRequestHandler.INSTANCE);
+                ch.pipeline().addLast(JoinGroupRequestHandler.INSTANCE);
+                ch.pipeline().addLast(QuitGroupRequestHandler.INSTANCE);
+                ch.pipeline().addLast(ListGroupMembersRequestHandler.INSTANCE);
+                ch.pipeline().addLast(GroupMessageRequestHandler.INSTANCE);
+                ch.pipeline().addLast(LogoutRequestHandler.INSTANCE);
+            }
+        });
+```
+
+可以看到，除了拆包器，所有的 handler 都写成了单例，当然，如果你的 handler 里有与 channel 相关成员变量，那就不要写成单例的，不过，其实所有的状态都可以绑定在 channel 的属性上，依然是可以改造成单例模式。
+
+**这里，我提一个问题，为什么 `PacketCodecHandler` 这个 handler 可以直接移到前面去，原来的 `PacketEncoder` 不是在最后吗？读者可以结合前面 handler 与 pipeline 相关的小节思考一下。**
+
+如果我们再仔细观察我们的服务端代码，发现，我们的 pipeline 链中，绝大部分都是与指令相关的 handler，我们把这些 handler 编排在一起，是为了逻辑简洁，但是随着指令相关的 handler 越来越多，handler 链越来越长，在事件传播过程中性能损耗会被逐渐放大，因为解码器解出来的每个 Packet 对象都要在每个 handler 上经过一遍，我们接下来来看一下如何缩短这个事件传播的路径。
+
+##  缩短事件传播路径
+
+### 压缩 handler - 合并平行 handler
+
+对我们这个应用程序来说，每次 decode 出来一个指令对象之后，其实只会在一个指令 handler 上进行处理，因此，我们其实可以把这么多的指令 handler 压缩为一个 handler，我们来看一下如何实现
+
+我们定义一个 `IMHandler`，实现如下：
+
+> IMHandler.java
+
+```java
+@ChannelHandler.Sharable
+public class IMHandler extends SimpleChannelInboundHandler<Packet> {
+    public static final IMHandler INSTANCE = new IMHandler();
+
+    private Map<Byte, SimpleChannelInboundHandler<? extends Packet>> handlerMap;
+
+    private IMHandler() {
+        handlerMap = new HashMap<>();
+
+        handlerMap.put(MESSAGE_REQUEST, MessageRequestHandler.INSTANCE);
+        handlerMap.put(CREATE_GROUP_REQUEST, CreateGroupRequestHandler.INSTANCE);
+        handlerMap.put(JOIN_GROUP_REQUEST, JoinGroupRequestHandler.INSTANCE);
+        handlerMap.put(QUIT_GROUP_REQUEST, QuitGroupRequestHandler.INSTANCE);
+        handlerMap.put(LIST_GROUP_MEMBERS_REQUEST, ListGroupMembersRequestHandler.INSTANCE);
+        handlerMap.put(GROUP_MESSAGE_REQUEST, GroupMessageRequestHandler.INSTANCE);
+        handlerMap.put(LOGOUT_REQUEST, LogoutRequestHandler.INSTANCE);
+    }
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, Packet packet) throws Exception {
+        handlerMap.get(packet.getCommand()).channelRead(ctx, packet);
+    }
+}
+```
+
+1. 首先，IMHandler 是无状态的，依然是可以写成一个单例模式的类。
+2. 我们定义一个 map，存放指令到各个指令处理器的映射。
+3. 每次回调到 IMHandler 的 `channelRead0()` 方法的时候，我们通过指令找到具体的 handler，然后调用指令 handler 的 `channelRead`，他内部会做指令类型转换，最终调用到每个指令 handler 的 `channelRead0()` 方法。
+
+接下来，我们来看一下，如此压缩之后，我们的服务端代码
+
+> NettyServer.java
+
+```java
+serverBootstrap
+        .childHandler(new ChannelInitializer<NioSocketChannel>() {
+            protected void initChannel(NioSocketChannel ch) {
+                ch.pipeline().addLast(new Spliter());
+                ch.pipeline().addLast(PacketCodecHandler.INSTANCE);
+                ch.pipeline().addLast(LoginRequestHandler.INSTANCE);
+                ch.pipeline().addLast(AuthHandler.INSTANCE);
+                ch.pipeline().addLast(IMHandler.INSTANCE);
+            }
+        });
+```
+
+可以看到，现在，我们服务端的代码已经变得很清爽了，所有的平行指令处理 handler，我们都压缩到了一个 `IMHandler`，并且 `IMHandler` 和指令 handler 均为单例模式，在单机十几万甚至几十万的连接情况下，性能能得到一定程度的提升，创建的对象也大大减少了。
+
+当然，如果你对性能要求没这么高，大可不必搞得这么复杂，还是按照我们前面小节的方式来实现即可，比如，我们的客户端多数情况下是单连接的，其实并不需要搞得如此复杂，还是保持原样即可。
+
+### 更改事件传播源(重要)
+
+另外，关于缩短事件传播路径，除了压缩 handler，还有一个就是，如果你的 outBound 类型的 handler 较多，在写数据的时候能用 `ctx.writeAndFlush()` 就用这个方法。
+
+> `ctx.writeAndFlush()` 事件传播路径
+
+`ctx.writeAndFlush()` 是从 pipeline 链中的当前节点开始往前找到第一个 outBound 类型的 handler 把对象往前进行传播，如果这个对象确认不需要经过其他 outBound 类型的 handler 处理，就使用这个方法。
+
+![](59.png) 
+
+如上图，在某个 inBound 类型的 handler 处理完逻辑之后，**调用 `ctx.writeAndFlush()` 可以直接一口气把对象送到 codec 中编码，然后写出去。** 
+
+> `ctx.channel().writeAndFlush()` 事件传播路径
+
+`ctx.channel().writeAndFlush()` 是从 pipeline 链中的最后一个 outBound 类型的 handler 开始，把对象往前进行传播，**如果你确认当前创建的对象需要经过后面的 outBound 类型的 handler，那么就调用此方法**。
+
+![](60.png) 
+
+如上图，在某个 inBound 类型的 handler 处理完逻辑之后，调用 `ctx.channel().writeAndFlush()`，对象会从最后一个 outBound 类型的 handler 开始，逐个往前进行传播，路径是要比 `ctx.writeAndFlush()` 要长的。
+
+由此可见，在我们的应用程序中，当我们没有改造编解码之前，我们必须调用 `ctx.channel().writeAndFlush()`, 而经过改造之后，我们的编码器（既属于 inBound, 又属于 outBound 类型的 handler）已处于 pipeline 的最前面，因此，可以大胆使用 `ctx.writeAndFlush()`。
+
+## 减少阻塞主线程的操作
+
+**这部分内容可能会引起部分读者不适，如果不能理解，记住结论即可。**
+
+通常我们的应用程序会涉及到数据库或者网络，比如以下这个例子
+
+```java
+protected void channelRead0(ChannelHandlerContext ctx, T packet) {
+    // 1. balabala 一些逻辑
+    // 2. 数据库或者网络等一些耗时的操作
+    // 3. writeAndFlush()
+    // 4. balabala 其他的逻辑
+}
+```
+
+我们看到，在 `channelRead0()` 这个方法里面，第二个过程中，我们有一些耗时的操作，这个时候，我们万万不能将这个操作直接就在这个方法中处理了，为什么？
+
+默认情况下，Netty 在启动的时候会开启 2 倍的 cpu 核数个 NIO 线程，而通常情况下我们单机会有几万或者十几万的连接，因此，**一条 NIO 线程会管理着几千或几万个连接**，在传播事件的过程中，单条 NIO 线程的处理逻辑可以抽象成以下一个步骤，我们就拿 `channelRead0()` 举例
+
+> 单个 NIO 线程执行的抽象逻辑
+
+```java
+List<Channel> channelList = 已有数据可读的 channel
+for (Channel channel in channelist) {
+   for (ChannelHandler handler in channel.pipeline()) {
+       handler.channelRead0();
+   } 
+}
+```
+
+从上面的抽象逻辑中可以看到，其中只要有一个 channel 的一个 handler 中的 `channelRead0()` 方法阻塞了 NIO 线程，最终都会拖慢绑定在该 NIO 线程上的其他所有的 channel，当然，这里抽象的逻辑已经做了简化，想了解细节可以参考我关于 Netty 中 NIO 线程（即 reactor 线程）文章的分析， 「[netty 源码分析之揭开 reactor 线程的面纱（一）](https://www.jianshu.com/p/0d0eece6d467)」， 「[netty 源码分析之揭开 reactor 线程的面纱（二）](https://www.jianshu.com/p/467a9b41833e)」， 「[netty 源码分析之揭开 reactor 线程的面纱（二）](https://www.jianshu.com/p/58fad8e42379)」
+
+而我们需要怎么做？对于耗时的操作，我们需要把这些耗时的操作丢到我们的业务线程池中去处理，下面是解决方案的伪代码
+
+```java
+ThreadPool threadPool = xxx;
+
+protected void channelRead0(ChannelHandlerContext ctx, T packet) {
+    threadPool.submit(new Runnable() {
+        // 1. balabala 一些逻辑
+        // 2. 数据库或者网络等一些耗时的操作
+        // 3. writeAndFlush()
+        // 4. balabala 其他的逻辑
+    })
+}
+```
+
+这样，就可以避免一些耗时的操作影响 Netty 的 NIO 线程，从而影响其他的 channel。
+
+## 如何准确统计处理时长
+
+我们接着前面的逻辑来讨论，通常，应用程序都有统计某个操作响应时间的需求，比如，基于我们上面的栗子，我们会这么做
+
+```java
+protected void channelRead0(ChannelHandlerContext ctx, T packet) {
+    threadPool.submit(new Runnable() {
+        long begin = System.currentTimeMillis();
+        // 1. balabala 一些逻辑
+        // 2. 数据库或者网络等一些耗时的操作
+        // 3. writeAndFlush()
+        // 4. balabala 其他的逻辑
+        long time =  System.currentTimeMillis() - begin;
+    })
+}
+```
+
+这种做法其实是不推荐的，为什么？因为 `writeAndFlush()` 这个方法如果在非 NIO 线程（这里，我们其实是在业务线程中调用了该方法）中执行，它是一个异步的操作，调用之后，其实是会立即返回的，剩下的所有的操作，都是 Netty 内部有一个任务队列异步执行的，想了解底层细节的可以阅读一下我的这篇文章 [「netty 源码分析之 writeAndFlush 全解析」](https://www.jianshu.com/p/feaeaab2ce56) 因此，这里的 `writeAndFlush()` 执行完毕之后，并不能代表相关的逻辑，比如事件传播、编码等逻辑执行完毕，只是表示 Netty 接收了这个任务，那么如何才能判断 `writeAndFlush()` 执行完毕呢？我们可以这么做
+
+```java
+protected void channelRead0(ChannelHandlerContext ctx, T packet) {
+    threadPool.submit(new Runnable() {
+        long begin = System.currentTimeMillis();
+        // 1. balabala 一些逻辑
+        // 2. 数据库或者网络等一些耗时的操作
+        
+        // 3. writeAndFlush
+        xxx.writeAndFlush().addListener(future -> {
+            if (future.isDone()) {
+                // 4. balabala 其他的逻辑
+                long time =  System.currentTimeMillis() - begin;
+            }
+        });
+    })
+}
+```
+
+`writeAndFlush()` 方法会返回一个 `ChannelFuture` 对象，我们给这个对象添加一个监听器，然后在回调方法里面，我们可以监听这个方法执行的结果，进而再执行其他逻辑，最后统计耗时，这样统计出来的耗时才是最准确的。
+
+最后，需要提出的一点就是，Netty 里面很多方法都是异步的操作，在业务线程中如果要统计这部分操作的时间，都需要使用监听器回调的方式来统计耗时，如果在 NIO 线程中调用，就不需要这么干。
+
+## 总结
+
+这小节的知识点较多，每一个知识点都是我在线上千万级长连接应用摸索总结出来的实践经验，了解这些知识点会对你的线上应用有较大帮助，最后，我们来总结一下
+
+1. 我们先在开头实现了群聊消息的最后一个部分：群聊消息的收发，这部分内容对大家来说已经非常平淡无奇了，因此没有贴完整的实现，重点在于实现完这最后一步接下来所做的改造和优化。
+2. 所有指令都实现完之后，我们发现我们的 handler 已经非常臃肿庞大了，接下来，我们通过**单例模式改造、编解码器合并、平行指令 handler 合并**、慎重选择两种类型的 `writeAndFlush()` 的方式来压缩优化。
+3. 在 handler 的处理中，如果有耗时的操作，我们需要把这些操作都丢到我们自定义的的业务线程池中处理，因为 NIO 线程是会有很多 channel 共享的，我们不能阻塞他。
+4. 对于统计耗时的场景，如果在自定义业务线程中调用类似 `writeAndFlush()` 的异步操作，需要通过添加监听器的方式来统计。
+
+
+
+# 心跳与空闲检测
+
+ 首先，我们来看一下，客户端与服务端之间的网络会存在什么问题？ 
+
+## 网络问题
+
+下图是网络应用程序普遍会遇到的一个问题：连接假死
+
+![](61.png) 
+
+连接假死的现象是：在某一端（服务端或者客户端）看来，底层的 TCP 连接已经断开了，但是应用程序并没有捕获到，因此会认为这条连接仍然是存在的，从 TCP 层面来说，只有收到四次握手数据包或者一个 RST 数据包，连接的状态才表示已断开。
+
+连接假死会带来以下两大问题
+
+1. 对于服务端来说，因为每条连接都会耗费 cpu 和内存资源，大量假死的连接会逐渐耗光服务器的资源，最终导致性能逐渐下降，程序奔溃。
+2. 对于客户端来说，连接假死会造成发送数据超时，影响用户体验。
+
+通常，连接假死由以下几个原因造成的
+
+1. 应用程序出现线程堵塞，无法进行数据的读写。
+2. 客户端或者服务端网络相关的设备出现故障，比如网卡，机房故障。
+3. 公网丢包。公网环境相对内网而言，非常容易出现丢包，网络抖动等现象，如果在一段时间内用户接入的网络连续出现丢包现象，那么对客户端来说数据一直发送不出去，而服务端也是一直收不到客户端来的数据，连接就一直耗着。
+
+如果我们的应用是面向用户的，那么公网丢包这个问题出现的概率是非常大的。对于内网来说，内网丢包，抖动也是会有一定的概率发生。一旦出现此类问题，客户端和服务端都会受到影响，接下来，我们分别从服务端和客户端的角度来解决连接假死的问题。
+
+##  服务端空闲检测
+
+对于服务端来说，客户端的连接如果出现假死，那么服务端将无法收到客户端的数据，也就是说，如果能一直收到客户端发来的数据，那么可以说明这条连接还是活的，因此，服务端对于连接假死的应对策略就是空闲检测。
+
+何为空闲检测？空闲检测指的是每隔一段时间，检测这段时间内是否有数据读写，简化一下，我们的服务端只需要检测一段时间内，是否收到过客户端发来的数据即可，Netty 自带的 `IdleStateHandler` 就可以实现这个功能。
+
+接下来，我们写一个类继承自 `IdleStateHandler`，来定义检测到假死连接之后的逻辑。
+
+> IMIdleStateHandler.java
+
+```java
+public class IMIdleStateHandler extends IdleStateHandler {
+
+    private static final int READER_IDLE_TIME = 15;
+
+    public IMIdleStateHandler() {
+        super(READER_IDLE_TIME, 0, 0, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) {
+        System.out.println(READER_IDLE_TIME + "秒内未读到数据，关闭连接");
+        ctx.channel().close();
+    }
+}
+```
+
+1. 首先，我们观察一下 `IMIdleStateHandler` 的构造函数，他调用父类 `IdleStateHandler` 的构造函数，有四个参数，其中第一个表示读空闲时间，指的是在这段时间内如果没有数据读到，就表示连接假死；第二个是写空闲时间，指的是 在这段时间如果没有写数据，就表示连接假死；第三个参数是读写空闲时间，表示在这段时间内如果没有产生数据读或者写，就表示连接假死。写空闲和读写空闲为0，表示我们不关心者两类条件；最后一个参数表示时间单位。在我们的例子中，表示的是：如果 15 秒内没有读到数据，就表示连接假死。
+2. **连接假死之后会回调 `channelIdle()` 方法**，我们这个方法里面打印消息，并手动关闭连接。
+
+接下来，我们把这个 handler 插入到服务端 pipeline 的最前面
+
+> NettyServer.java
+
+```java
+serverBootstrap
+        .childHandler(new ChannelInitializer<NioSocketChannel>() {
+            protected void initChannel(NioSocketChannel ch) {
+                // 空闲检测
+                ch.pipeline().addLast(new IMIdleStateHandler());
+                ch.pipeline().addLast(new Spliter());
+                // ...
+            }
+        });
+```
+
+**为什么要插入到最前面？是因为如果插入到最后面的话，如果这条连接读到了数据，但是在 inBound 传播的过程中出错了或者数据处理完完毕就不往后传递了（我们的应用程序属于这类），那么最终 `IMIdleStateHandler` 就不会读到数据，最终导致误判。** 
+
+服务端的空闲检测时间完毕之后，接下来我们再思考一下，在一段时间之内没有读到客户端的数据，是否一定能判断连接假死呢？并不能，如果在这段时间之内客户端确实是没有发送数据过来，但是连接是 ok 的，那么这个时候服务端也是不能关闭这条连接的，为了防止服务端误判，我们还需要在客户端做点什么。
+
+## 客户端定时发心跳
+
+服务端在一段时间内没有收到客户端的数据，这个现象产生的原因可以分为以下两种：
+
+1. 连接假死。
+2. 非假死状态下确实没有发送数据。
+
+我们只需要排除掉第二种可能性，那么连接自然就是假死的。要排查第二种情况，我们可以在客户端定期发送数据到服务端，通常这个数据包称为心跳数据包，接下来，我们定义一个 handler，定期发送心跳给服务端
+
+> HeartBeatTimerHandler.java
+
+```java
+public class HeartBeatTimerHandler extends ChannelInboundHandlerAdapter {
+
+    private static final int HEARTBEAT_INTERVAL = 5;
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        scheduleSendHeartBeat(ctx);
+
+        super.channelActive(ctx);
+    }
+
+    private void scheduleSendHeartBeat(ChannelHandlerContext ctx) {
+        ctx.executor().schedule(() -> {
+
+            if (ctx.channel().isActive()) {
+                ctx.writeAndFlush(new HeartBeatRequestPacket());
+                scheduleSendHeartBeat(ctx);
+            }
+
+        }, HEARTBEAT_INTERVAL, TimeUnit.SECONDS);
+    }
+}
+```
+
+`**ctx.executor()` 返回的是当前的 channel 绑定的 NIO 线程**，不理解没关系，只要记住就行，然后，NIO 线程有一个方法，`schedule()`，类似 jdk 的延时任务机制，可以隔一段时间之后执行一个任务，而我们这边是实现了每隔 5 秒，向服务端发送一个心跳数据包，**这个时间段通常要比服务端的空闲检测时间的一半要短一些**，我们这里直接定义为空闲检测时间的三分之一，主要是为了排除公网偶发的秒级抖动。
+
+实际在生产环境中，我们的发送心跳间隔时间和空闲检测时间可以略长一些，可以设置为几分钟级别，具体应用可以具体对待，没有强制的规定。
+
+我们上面其实解决了服务端的空闲检测问题，服务端这个时候是能够在一定时间段之内关掉假死的连接，释放连接的资源了，但是对于客户端来说，我们也需要检测到假死的连接。
+
+## 服务端回复心跳与客户端空闲检测
+
+客户端的空闲检测其实和服务端一样，依旧是在客户端 pipeline 的最前方插入 `IMIdleStateHandler`
+
+> NettyClient.java
+
+```
+bootstrap
+        .handler(new ChannelInitializer<SocketChannel>() {
+            public void initChannel(SocketChannel ch) {
+                // 空闲检测
+                ch.pipeline().addLast(new IMIdleStateHandler());
+                ch.pipeline().addLast(new Spliter());
+                // ...
+```
+
+然后为了排除是否是因为服务端在非假死状态下确实没有发送数据，服务端也要定期发送心跳给客户端。
+
+而其实在前面我们已经实现了客户端向服务端定期发送心跳，服务端这边其实只要在收到心跳之后回复客户端，给客户端发送一个心跳响应包即可。如果在一段时间之内客户端没有收到服务端发来的数据，也可以判定这条连接为假死状态。
+
+因此，服务端的 pipeline 中需要再加上如下一个 handler - `HeartBeatRequestHandler`，由于这个 handler 的处理其实是无需登录的，所以，我们将该 handler 放置在 `AuthHandler` 前面
+
+> NettyServer.java
+
+```java
+serverBootstrap
+                ch.pipeline().addLast(new IMIdleStateHandler());
+                ch.pipeline().addLast(new Spliter());
+                ch.pipeline().addLast(PacketCodecHandler.INSTANCE);
+                ch.pipeline().addLast(LoginRequestHandler.INSTANCE);
+                // 加在这里
+                ch.pipeline().addLast(HeartBeatRequestHandler.INSTANCE);
+                ch.pipeline().addLast(AuthHandler.INSTANCE);
+                ch.pipeline().addLast(IMHandler.INSTANCE);
+            }
+        });
+```
+
+`HeartBeatRequestHandler` 相应的实现为
+
+```java
+@ChannelHandler.Sharable
+public class HeartBeatRequestHandler extends SimpleChannelInboundHandler<HeartBeatRequestPacket> {
+    public static final HeartBeatRequestHandler INSTANCE = new HeartBeatRequestHandler();
+
+    private HeartBeatRequestHandler() {
+
+    }
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, HeartBeatRequestPacket requestPacket) {
+        ctx.writeAndFlush(new HeartBeatResponsePacket());
+    }
+}
+```
+
+实现非常简单，只是简单地回复一个 `HeartBeatResponsePacket` 数据包。客户端在检测到假死连接之后，断开连接，然后可以有一定的策略去重连，重新登录等等，这里就不展开了，留给读者自行实现。
+
+关于心跳与健康检测相关的内容就讲解到这里，原理理解清楚了并不难实现，最后，我们来对本小节内容做一下总结。
+
+## 总结
+
+1. 我们首先讨论了连接假死相关的现象以及产生的原因。
+2. 要处理假死问题首先我们要实现客户端与服务端定期发送心跳，在这里，其实服务端只需要对客户端的定时心跳包进行回复。
+3. 客户端与服务端如果都需要检测假死，那么直接在 pipeline 的最前方插入一个自定义 `IdleStateHandler`，在 `channelIdle()` 方法里面自定义连接假死之后的逻辑。
+4. 通常空闲检测时间要比发送心跳的时间的两倍要长一些，这也是为了排除偶发的公网抖动，防止误判。
+
+## 思考
+
+1. `IMIdleStateHandler` 能否实现为单例模式，为什么？
+2. 如何实现客户端在断开连接之后自动连接并重新登录？
+
+
+
+ 1.IMIdleStateHandler 能否实现为单例模式，为什么？ // 不行，每个连接，都有各自的状态，上次读的时间 2.如何实现客户端在断开连接之后自动连接并重新登录？调用connect() 
 
 
 
@@ -1988,8 +4721,137 @@ Netty 中的 pipeline 和 channelHandler 正是用来解决这个问题的：它
 
 
 
-# 脑图
+# 全文总结
+
+##  服务端和客户端启动
+
+Netty 提供了两大启动辅助类，`ServerBootstrap` 和 `Bootstrap`， 他们的启动参数类似，都是分为
+
+1. 配置 IO 类型，配置线程模型。
+2. 配置 TCP 参数，attr 属性。
+3. 配置 handler。server 端除了配置 handler，还需要配置 childHandler，他是定义每条连接的处理器。
+
+## ByteBuf
+
+接着，我们又学习了 Netty 对二进制数据的抽象类 ByteBuf，ByteBuf 底层又可以细分为堆内存和堆外内存，它的 API 要比 jdk 提供的 ByteBuffer 要更好用，ByteBuf 所有的操作其实都是基于读指针和写指针来进行操作的，把申请到的一块内存划分为可读区、可写区，另外还提供了自动扩容的功能。
+
+## 自定义协议拆包与编解码
+
+通常，我们要实现客户端与服务端的通信，需要自定义协议，说白了就是双方商量在字节流里面，对应位置的字节段分别表示什么含义。
+
+我们用的最多的协议呢就是基于长度的协议，一个协议数据包里面包含了一个长度字段，我们在解析的时候，首先第一步就是从字节流里面根据自定义协议截取出一个个数据包，使用的最多的拆包器就是 `LengthFieldBasedFrameDecoder`，只需要给他配置一些参数，即可实现自动拆包。
+
+拆包之后呢，我们就拿到了代表字节流区段的一个个 ByteBuf，我们的解码器的作用就是把这些个 ByteBuf 变成一个个 java 对象，这样我们后续的 handler 就可以进行相应的逻辑的处理。
+
+## handler 与 pipeline
+
+Netty 对逻辑处理流的处理其实和 TCP 协议栈的思路非常类似，分为输入和输出，也就是 inBound 和 outBound 类型的 handler，inBound 类 handler 的添加顺序与事件传播的顺序相同，而 outBound 类 handler 的添加顺序与事件传播的顺序相反，这里一定要注意。
+
+无状态的 handler 可以改造为单例模式，但是千万记得要加 `@ChannelHandler.Sharable` 注解，平行等价的 handler 可以使用压缩的方式减少事件传播路径，调用 `ctx.xxx()` 而不是 `ctx.channel().xxx()` 也可以减少事件传播路径，不过要看应用场景。
+
+另外，每个 handler 都有自己的生命周期，Netty 会在 channel 或者 channelHandler 处于不同状态的情况下回调相应的方法，channelHandler 也可以动态添加，特别适用于一次性处理的 handler，用完即删除，干干净净。
+
+## 耗时操作的处理与统计
+
+对于耗时的操作，不要直接在 NIO 线程里做，比如，不要在 `channelRead0()` 方法里做一些访问数据库或者网络相关的逻辑，要扔到自定义线程池里面去做，然后要注意这个时候，`writeAndFlush()` 的执行是异步的，需要通过添加监听回调的方式来判断是否执行完毕，进而进行延时的统计。
+
+关于 Netty 的知识点大概就这么多，如果你读完这小节，觉得已经很轻松，那么恭喜你，Netty 大部分的知识点你已经掌握了，接下来就可以进阶学习了。
+
+另外，如果后续笔者发现本小册有遗漏的知识点，也会陆续补充到本小册中，感谢坚持到最后的小伙伴，一定要反复地把本小册的最终代码亲自多写几遍哦！
+
+ 
+
+Netty 入门门槛高，其实是因为这方面的资料太少了，并不是因为他有多难 
+
+# 参考
+
+[netty源码分析之pipeline(一)](https://www.jianshu.com/p/6efa9c5fa702)   
+
+[netty源码分析之pipeline(二)](https://www.jianshu.com/p/087b7e9a27a2) 
+
+[netty源码分析之新连接接入全解析](https://www.jianshu.com/p/0242b1d4dd21)  
+
+[netty源码分析之揭开reactor线程的面纱（三）](https://www.jianshu.com/p/58fad8e42379)   
+
+[ByteToMessageDecoder的实现原理(8-2)](https://coding.imooc.com/class/chapter/230.html#Anchor) 
+
+[netty源码分析之LengthFieldBasedFrameDecoder](https://www.jianshu.com/p/a0a51fd79f62) 
+
+[netty源码分析之拆包器的奥秘](https://www.jianshu.com/p/dc26e944da95) 
+
+[微信单聊原理](https://mp.weixin.qq.com/s?__biz=MzI1OTUzMTQyMA==&mid=2247484094&idx=1&sn=d3c89ca9897f11e94deaa85e16e09e8c&chksm=ea76354ddd01bc5b49da25fc47237137796e1151e69ad975d47d37241cfefcca3762ee35017e&token=1671319965&lang=zh_CN#rd) 
+
+ [小闪对话：微信聊天长连设计的探讨（一）](https://juejin.im/post/6844903650741977095)  
+
+[小闪对话：微信长连接设计的探讨（二）](https://juejin.im/post/6844903689111470094)  
+
+ [netty 源码分析之揭开 reactor 线程的面纱（一）](https://www.jianshu.com/p/0d0eece6d467) 
+
+ [netty 源码分析之揭开 reactor 线程的面纱（二）](https://www.jianshu.com/p/467a9b41833e)  
+
+# 扩展
+
+毋庸置疑，通常情况下，官网一直是学习一门技术最好的资料
+
+[netty.io/wiki/user-g…](https://netty.io/wiki/user-guide-for-4.x.html) 这里是官方给出的 4.x 版本的 Netty 的一个学习指引，大家可以温习一遍。 [netty.io/wiki/new-an…](https://netty.io/wiki/new-and-noteworthy-in-4.1.html) 4.1x版本的新的特性，大家也可以感受一下 Netty 的版本变化。
+
+另外，大家也可以了解一下目前有哪些开源项目使用了 Netty：[Netty.io/wiki/relate…](https://netty.io/wiki/related-projects.html)
+
+关于 Netty 详细的 demo，也可以在官网找到，比如，你想使用 Netty 来实现一个 Http 服务器，或者实现一个 Websocket 服务器，或者实现 redis 协议等等，都可以在 [官方提供的 demo](https://github.com/netty/netty/tree/4.1/example/src/main/java/io/netty/example) 中找到。
+
+最后 Netty 的作者之一 [normanmaurer](https://github.com/normanmaurer)  亲自 写了一本 Netty 入门的书，叫做 《Netty 实战》
+
+
+
+要精通一门技术，除了会熟练使用之外，撸源码也是一条必经之路。
+
+笔者在过去一段时间陆续写过很多篇关于 Netty 源码解析的文章，这里我也做下归类
+
+关于 Netty 服务端启动的流程可以参考
+
+[Netty 源码分析之服务端启动全解析](https://juejin.im/post/6844903695403089927)
+
+关于服务端是如何处理一条新的连接的，可以参考
+
+[Netty 源码分析之新连接接入全解析](https://juejin.im/post/6844903696413769735)
+
+关于 Netty 里面 NIO 到底干了啥事，为啥可以做到一个 NIO 线程就可以处理上万连接，异步机制又是如何实现的，可以参考以下三篇文章
+
+1. [Netty 源码分析之揭开 reactor 线程的面纱（一）](https://juejin.im/post/6844903696992567310)
+2. [Netty 源码分析之揭开 reactor 线程的面纱（二）](https://juejin.im/post/6844903697789485063)
+3. [Netty 源码分析之揭开 reactor 线程的面纱（三）](https://juejin.im/post/6844903698456379405)
+
+关于事件传播机制 Netty 又是如何实现的，为什么 inBound 和 outBound 的传播顺序与添加顺序的对应规则不同，Netty 又是如何来区分 inBound 和 outBound 的，Netty 的 pipeline 默认又有哪两个 handler，他们的作用分别是什么，一切尽在以下两篇文章
+
+1. [Netty 源码分析之 pipeline (一)](https://juejin.im/post/6844903699614007310)
+2. [Netty 源码分析之 pipeline (二)](https://juejin.im/post/6844903701451112456)
+
+Netty 中拆包器的原理是什么？可以参考 [Netty 源码分析之拆包器的奥秘](https://juejin.im/post/6844903702541631502)
+
+基于长度域的拆包器又是如何来实现的，可以参考 [Netty 源码分析之 LengthFieldBasedFrameDecoder](https://juejin.im/post/6844903714789015565)
+
+最后，我们在本小册接触最频繁的 `writeAndFlush()` 方法，它又是如何实现异步化的，可以参考 [Netty 源码分析之 writeAndFlush 全解析](https://www.jianshu.com/p/feaeaab2ce56)
+
+关于源码解析的文章差不多就这么多，另外，如果你对我之前遇到的线上与 Netty 相关的问题排查，以及一些调优相关的经验和实践感兴趣的话，也可以读一读下面几篇文章
+
+1. [Netty 堆外内存泄露排查盛宴](https://juejin.im/post/6844903669335343111)
+2. [海量连接服务端 jvm 参数调优杂记](https://www.jianshu.com/p/051d566e110d)
+3. [一次 Netty "引发的" 诡异 old gc 问题排查过程](https://www.jianshu.com/p/702ef10102e4)
+
+
+
+# 本文所有代码 
+
+[LearnNettySource.zip](LearnNettySource.zip) 
+
+[groupchat_receivemessage_optimization.zip](groupchat_receivemessage_optimization.zip) 
+
+[groupchat_join_quit.zip](groupchat_join_quit.zip) 
+
+# 脑图 
 
 
 
 ![](brain.png) 
+
+
