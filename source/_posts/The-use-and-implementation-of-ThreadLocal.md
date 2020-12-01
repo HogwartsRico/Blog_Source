@@ -300,7 +300,7 @@ public class ThreadLocalTest2 {
 
 
 
-这里的ThreadLocalMap可以简单理解为就是持有一个数组（具体这个ThreadLocalMap我下面会详细介绍），这个数组是Entry 类型的。 Entry 的key 是ThreadLocal 类型的（就是你自己new出来的ThreadLocal），value 是Object 类型。一个ThreadLocalMap 可以持有多个ThreadLocal。他们是一对多的关系,就像上面的代码中我在一个线程中new了2个ThreadLocal,都可以获取到对应的值。 
+这里的ThreadLocalMap可以简单理解为就是持有一个数组（具体这个ThreadLocalMap我下面会详细介绍），这个数组是Entry 类型的。 Entry 的key 是ThreadLocal 类型的（就是你自己new出来的ThreadLocal），value 是Object 类型。一个ThreadLocalMap 可以持有多个ThreadLocal。他们是一对多的关系,就像上面的代码中我在一个线程中new了2个ThreadLocal,都可以获取到对应的值。 （也可以一个ThreadLocal对象实例用在多个线程中）
 
 ![](3.png)
 
@@ -1112,7 +1112,7 @@ private int expungeStaleEntry(int staleSlot) {
 
 # ThreadLocal内存泄漏原因
 
-由于ThreadLocalMap是以弱引用的方式引用着ThreadLocal，换句话说，就是**ThreadLocal是被ThreadLocalMap以弱引用的方式关联着，因此如果ThreadLocal没有被ThreadLocalMap以外的对象引用，则在下一次GC的时候，ThreadLocal实例就会被回收，那么此时ThreadLocalMap里的一组KV的K就是null**了，因此在没有额外操作的情况下，此处的V便不会被外部访问到，而且**只要Thread实例一直存在，Thread实例就强引用着ThreadLocalMap，因此ThreadLocalMap就不会被回收，那么这里Key为null的Value就一直占用着内存**。
+由于ThreadLocalMap是以弱引用的方式引用着ThreadLocal，换句话说，就是**ThreadLocal是被ThreadLocalMap以弱引用的方式关联着，因此如果ThreadLocal没有被ThreadLocalMap以外的对象引用，则在下一次GC的时候，ThreadLocal实例就会被回收，那么此时ThreadLocalMap里的一组KV的K就是null**了，因此在没有额外操作的情况下，**此处的V便不会被外部访问到**，而且**只要Thread实例一直存在，Thread实例就强引用着ThreadLocalMap，因此ThreadLocalMap就不会被回收，那么这里Key为null的Value就一直占用着内存**。
 
 综上，发生内存泄露的条件是
 
@@ -1120,7 +1120,7 @@ private int expungeStaleEntry(int staleSlot) {
 - ThreadLocal实例被回收，但是在ThreadLocalMap中的V没有被任何清理机制有效清理
 - 当前Thread实例一直存在，则会一直强引用着ThreadLocalMap，也就是说ThreadLocalMap也不会被GC
 
-**也就是说，如果Thread实例还在，但是ThreadLocal实例却不在了** (ThreadLocal可在Thread外面实例化,和Thread无关,所以会存在Thread还在,ThreadLocal不在的情况)，则ThreadLocal实例作为key所关联的value无法被外部访问，却还被强引用着，因此出现了内存泄露。
+**也就是说，如果Thread实例还在，但是ThreadLocal实例却不在了** (ThreadLocal可在Thread外面实例化,和Thread无关,所以会存在Thread还在,ThreadLocal不在的情况)，则ThreadLocal实例作为key **所关联的value** 无法被外部访问，因此出现了内存泄露。
 
 之所以有关于内存泄露的讨论是因为在有线程复用如线程池的场景中，一个线程的寿命很长，大对象长期不被回收影响系统运行效率与安全。如果线程不会复用，用完即销毁了也不会有ThreadLocal引发内存泄露的问题
 

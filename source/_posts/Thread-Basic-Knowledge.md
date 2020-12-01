@@ -6,7 +6,6 @@ tags: Java
 
 
 
-
 # 进程和线程
 
 谈到多线程，就得先讲进程和线程的概念。
@@ -1234,6 +1233,14 @@ Lock类实际上是一个接口，我们在实例化的时候实际上是实例�
 
 ReentrantLock，一个可重入的互斥锁，它具有与使用synchronized方法和语句所访问的隐式监视器锁相同的一些基本行为和语义，但功能更强大。
 
+lock是可中断锁，而synchronized 不是可中断锁  
+
+线程A和B都要获取对象O的锁定，假设A获取了对象O锁，B将等待A释放对O的锁定   
+
+如果使用 synchronized ，如果A不释放，B将一直等下去，不能被中断   
+
+如果 使用ReentrantLock，如果A不释放，可以使B在等待了足够长的时间以后，中断等待，而干别的事情(详见下面的`tryLock(timeout,unit)`)   
+
  先来看一下ReentrantLock的基本用法： 
 
 ```java
@@ -1593,7 +1600,47 @@ public class ThreadDomain {
 
 ![](20.png) 
 
+#### lockInterruptibly
 
+如果当前线程未被中断，则获取锁  
+
+`ReentrantLock.lockInterruptibly` 允许在等待时由其它线程调用等待线程的`Thread.interrupt` 方法来中断等待线程的等待而直接返回，这时不用获取锁，而会抛出一个InterruptedException。 
+
+1 **线程在sleep或wait,join**， 此时如果别的进程调用此进程的 **interrupt（）方法**，此线程会被唤醒并被要求处理**InterruptedException**；(thread在做IO操作时也可能有类似行为，见java thread api)
+
+2  **此线程在运行中， 则不会收到提醒。但是 此线程的 “打扰标志”会被设置， 可以通过isInterrupted()查看并 作出处理。** 
+
+
+
+lockInterruptibly()和上面的第一种情况是一样的， **线程在请求lock并被阻塞时，如果被interrupt，则“此线程会被唤醒并被要求处理InterruptedException**。并且如果线程已经被interrupt，再使用lockInterruptibly的时候，此线程也会被要求处理interruptedException
+
+```java
+public class TestLockInterruptibly {
+    public void test() throws Exception {
+        final Lock lock = new ReentrantLock();
+        lock.lock();
+        //新起一个线程去获取锁
+        Thread t1 = new Thread(()-> {
+            try {
+                lock.lockInterruptibly();
+            } catch (InterruptedException e) {
+                System.out.println(Thread.currentThread().getName() + " 获取锁的过程中被打断了.");
+            }
+        }, "child thread -1");
+        t1.start();
+        Thread.sleep(1000);
+        t1.interrupt();
+        Thread.sleep(1000000);
+    }
+    public static void main(String[] args) throws Exception {
+        new TestLockInterruptibly().test();
+    }
+}
+```
+
+结果： child thread -1 获取锁的过程中被打断了.
+
+注意，是在请求锁的时候阻塞了，此时被打断会被唤醒并处理异常，如果lockInterruptibly就拿到锁了，没有阻塞，就不会被要求处理异常 
 
 #### ReentrantLock中的其他方法
 
@@ -1607,13 +1654,7 @@ ReentrantLock中还有很多没有被列举到的方法就不写了，看一下�
 
 查询是否有线程正在等待与此锁有关的condition条件。比如5个线程，每个线程都执行了同一个condition的await()方法，那么方法调用的返回值是true，因为它们都在等待condition
 
-3、lockInterruptibly() 
-
-如果当前线程未被中断，则获取锁  
-
-`ReentrantLock.lockInterruptibly` 允许在等待时由其它线程调用等待线程的`Thread.interrupt` 方法来中断等待线程的等待而直接返回，这时不用获取锁，而会抛出一个InterruptedException。 
-
-4、getWaitingThreads(Condition condition)
+3、getWaitingThreads(Condition condition)
 
 返回一个collection，它包含**可能**正在等待与此锁相关给定条件的那些线程，因为构造结果的时候实际线程可能动态变化，因此返回的collection只是尽力的估计值
 
@@ -1811,7 +1852,43 @@ end awaitB时间为1606200577248ThreadName=B
 
 ### Condition类的其他功能
 
-和wait类提供了一个最长等待时间，`awaitUntil(Date deadline)`在到达指定时间之后，线程会自动唤醒。但是无论是await或者awaitUntil，当线程中断时，进行阻塞的线程会产生中断异常。Java提供了一个`awaitUninterruptibly`的方法，使即使线程中断时，进行阻塞的线程也不会产生中断异常。 
+`awaitUntil(Date deadline)`在到达指定时间之后，线程会自动唤醒。但是无论是await或者awaitUntil，当线程中断时，进行阻塞的线程会产生中断异常
+
+
+
+Java提供了一个`awaitUninterruptibly`的方法，使即使线程中断时，进行阻塞的线程也不会产生中断异常。   
+
+
+
+```java
+public interface Condition {
+     //使当前线程加入 await() 等待队列中，并释放当锁，当其他线程调用signal()会重新请求锁。与Object.wait()类似。
+    void await() throws InterruptedException;
+
+    //调用该方法的前提是，当前线程已经成功获得与该条件对象绑定的重入锁，否则调用该方法时会抛出IllegalMonitorStateException。
+    //调用该方法后，结束等待的唯一方法是其它线程调用该条件对象的signal()或signalALL()方法。等待过程中如果当前线程被中断，该方法仍然会继续等待，同时保留该线程的中断状态。 
+    void awaitUninterruptibly();
+
+    // 调用该方法的前提是，当前线程已经成功获得与该条件对象绑定的重入锁，否则调用该方法时会抛出IllegalMonitorStateException。
+    //nanosTimeout指定该方法等待信号的的最大时间（单位为纳秒）。若指定时间内收到signal()或signalALL()则返回nanosTimeout减去已经等待的时间；
+    //若指定时间内有其它线程中断该线程，则抛出InterruptedException并清除当前线程的打断状态；若指定时间内未收到通知，则返回0或负数。 
+    long awaitNanos(long nanosTimeout) throws InterruptedException;
+
+    //Causes the current thread to wait until it is signalled or interrupted,or the specified waiting time elapses. 使当前线程等待，直到发出信号或中断，或者指定的等待时间已过。
+    boolean await(long time, TimeUnit unit) throws InterruptedException;
+
+   //适用条件与行为与awaitNanos(long nanosTimeout)完全一样，唯一不同点在于它不是等待指定时间，而是等待由参数指定的某一时刻。
+    boolean awaitUntil(Date deadline) throws InterruptedException;
+    
+    //唤醒一个在 await()等待队列中的线程。与Object.notify()相似
+    void signal();
+
+   //唤醒 await()等待队列中所有的线程。与object.notifyAll()相似
+    void signalAll();
+}
+```
+
+
 
 ## 读写锁
 
@@ -2294,6 +2371,8 @@ private final Condition notFull = putLock.newCondition();
 
 **5、SynchronousQueue**
 
+ `SynchronousQueue`类实现了BlockingQueue接口 
+
 比较特殊，一**种没有缓冲的等待队列**。什么叫做没有缓冲区，ArrayBlocking中有：
 
 ```
@@ -2316,6 +2395,16 @@ static class Node<E> {
 ```
 
 将队列以链表形式连接。
+
+`SynchronousQueue`是一个内部只能包含一个元素的队列。插入元素到队列的线程被阻塞，直到另一个线程从队列中获取了队列中存储的元素。同样，如果线程尝试获取元素并且当前不存在任何元素，则该线程将被阻塞，直到线程将元素插入队列。
+
+将这个类称为队列有点夸大其词。这更像是一个点。 
+
+
+
+ SynchronousQueue没有容量，是无缓冲等待队列，是一个不存储元素的阻塞队列，会直接将任务交给消费者，必须等队列中的添加元素被消费后才能继续添加新的元素。 
+
+
 
 生产者/消费者操作数据实际上都是通过这两个"中介"来操作数据的，但是SynchronousQueue则是生产者直接把数据给消费者（消费者直接从生产者这里拿数据），好像又回到了没有生产者/消费者模型的老办法了。换句话说，**每一个插入操作必须等待一个线程对应的移除操作**。SynchronousQueue又有两种模式：
 
@@ -2699,45 +2788,13 @@ public ThreadPoolExecutor(int corePoolSize,
 
 
 
-默认情况下，在创建了线程池之后，线程池中的线程数为0，当有任务到来后就会创建一个线程去执行任务。除非调用prestartAllCoreThreads 
-
-
-
-
+默认情况下，在创建了线程池之后，线程池中的线程数为0，当有任务到来后就会创建一个线程去执行任务。除非调用prestartAllCoreThreads  
 
 当任务数量比corePoolSize大时，任务添加到workQueue
 
 ### maximumPoolSize
 
-池中允许的最大线程数(最大大小)，这个参数表示了线程池中最多能创建的线程数量，当任务数量比corePoolSize大时，任务添加到workQueue，当workQueue满了，将继续创建线程以处理任务，maximumPoolSize表示的就是wordQueue满了，线程池中最多可以创建的线程数量
-
-### keepAliveTime
-
-**只有当线程池中的线程数大于corePoolSize时，这个参数才会起作用**。当线程数大于corePoolSize时，超过corePoolSize部分的多余的空闲线程等待新任务的最长时间 ，如果超过，会销毁。 
-
-
-
-keepAliveTime是线程池中空闲线程等待工作的超时时间。当线程池中线程数量大于corePoolSize（核心线程数量）或设置了allowCoreThreadTimeOut（是否允许空闲核心线程超时）时，线程会根据keepAliveTime的值进行活性检查，一旦超时便销毁线程。否则，线程会永远等待新的工作。
-
-
-
-### unit
-
-keepAliveTime时间单位
-
-### workQueue
-
-队列,存储还没来得及执行的任务
-
-### threadFactory
-
-执行程序创建新线程时使用的工厂
-
-### handler
-
-拒绝策略(饱和策略)
-
-由于超出线程范围和队列容量而使执行被阻塞时所使用的处理程序
+池中允许的最大线程数(最大大小)，这个参数表示了线程池中最多能创建的线程数量，当任务数量比corePoolSize大时，任务添加到workQueue，当workQueue满了，将继续创建线程以处理任务，maximumPoolSize表示的就是wordQueue满了，线程池中最多可以创建的线程数量 
 
 
 
@@ -2745,13 +2802,45 @@ corePoolSize与maximumPoolSize举例理解
 
 上面的内容，其他应该都相对比较好理解，只有corePoolSize和maximumPoolSize需要多思考。这里要特别再举例以四条规则解释一下这两个参数：
 
-1、池中线程数小于corePoolSize，新任务都不排队而是直接添加新线程
+1、池中线程数小于corePoolSize，新任务都不排队而是直接添加新线程。
 
-2、池中线程数大于等于corePoolSize，workQueue未满，首选将新任务加入workQueue而不是添加新线程
+2、池中线程数大于等于corePoolSize，workQueue未满，首选将新任务加入workQueue而不是添加新线程。
 
-3、池中线程数大于等于corePoolSize，workQueue已满，但是线程数小于maximumPoolSize，添加新的线程来处理被添加的任务
+3、池中线程数大于等于corePoolSize，workQueue已满，但是线程数小于maximumPoolSize，添加新的线程来处理被添加的任务。
 
-4、池中线程数大于corePoolSize，workQueue已满，并且线程数大于等于maximumPoolSize，新任务被拒绝，使用handler处理被拒绝的任务
+4、池中线程数大于corePoolSize，workQueue已满，并且线程数大于等于maximumPoolSize，新任务被拒绝，使用handler处理被拒绝的任务。
+
+
+
+还有我有个疑问，当大于corePoolSize,然后workQueue也满了的时候，新来一个任务。 这时候是拿queue里的第一个任务去新开线程处理，还是新开线程去处理这个新任务？我搜到的资料都是新开线程去处理这个新任务，而不是队列里的任务。 等我看下线程池源码找出证据证明 2020-11-30
+
+
+
+为什么是这么一个流程？
+
+首先我们明白一件事情，线程并不是越多越好，也不是越少越好。对于纯阻塞式的任务，线程多一些没有什么关系，这样可以及时地发出IO请求，节省时间，只要别OOM即可；对于纯计算型的任务，最合适的线程数就取决于处理器，过多的话就会互相竞争，使上下文切换浪费掉宝贵的计算资源。
+
+而对于实际情况来说，我们投入线程池中的任务，并不完全是阻塞式的，也不完全是计算型的，并且其他进程的线程也会一起竞争处理器，因此实际情况是复杂的。在这种复杂的现实中，我们并不能够确定最合适的线程数是多少，但是我们可以作一个估计，这个估算出来的最佳的线程数，就是corePoolSize。
+
+既然我们此时已经假设corePoolSize是最高效的线程数，那么使更多的任务在队列中等待这corePoolSize个线程进行处理，这是很合理的，题主你所提出的那种方案，也就是这样。
+
+但是这里有一个问题，那就是我们并不确定我们所估算的corePoolSize是否合适，它有可能偏小了，也有可能偏大了。在我们最初进行估算的时候，就是基于一个假设，也就是一定存在某一个最合适的线程数，实际线程数与它的差距越大，效率则越低。
+
+基于这样一种假设，假如我们所设定的corePoolSize真的偏大了，那么此时通过workQueue限制更多线程被创建是合理的。假如我们所设定的corePoolSize实际上偏小了，那么workQueue将逐渐堆积，直到它已经被填满，我们此时就可以认为，workQueue的堆积情况不符合预期，corePoolSize的确偏小了，所以应该创建新的线程，使实际的线程数更加接近理想值。而maximumPoolSize的意义，并不是为了更高的效率，因为一旦线程池进入了这样一种状态，再也没有另一个workQueue可以限制它创建线程了，所以maximumPoolSize实际上是这个线程池的底线。
+
+ThreadPoolExecutor的这种设计比较理想化，它若要保持高效，首先这个线程池所承担的压力应该相对稳定，不能像草坪上的僵尸那样一波一波地逼近。其次，这个线程池需要比较大，不然这个corePoolSize设定得大一些小一些也就没有什么明显的区别，更何况线程池中的线程是无法跨池复用的（其实有种骚操作可以实现，这里就不展开了），所以一大堆零零散散的微型线程池并不一定能起到比野线程更好的作用。最后，一旦corePoolSize和workQueue都已经被填满，直到线程数到达maximumPoolSize并触发拒绝策略触发之前，线程的创建无法受到任何限制，所以实际上在这个阶段，线程池的运行效率已经不再受我们做出的猜测的影响，它已经无法再以最佳在状态执行任务，无论是估计还是实际。
+
+但是，我们注意到，线程池的拒绝策略是可以手动设定的。
+
+于是我们其实可以一直套娃，在第一个池溢出时投入第二个池，在第二个池溢出时投入第三个池，按照这样一种设计，我们可以为了性能做出更加细致地估算，个人觉得这种用法在Doug Lea设计ThreadPoolExecutor的时候应该已经考虑到了，此时一个一个的corePoolSize、workQueue、maximumPoolSize层层嵌套下去，就如同一座水坝，使我们可以将性能优化到极致。
+
+但是，这样仍旧是治标不治本的方法。理想中最优的处理方式，是阻塞式任务多创建线程，计算型任务少创建线程，而这需要在编码的时候提高每个任务的内聚性，专门跑阻塞式任务的线程完成每个任务后再通知专门执行计算型任务的线程异步处理这次请求返回的结果，而这种设计虽然能够更加合理地利用线程资源，却会使代码更加复杂，降低开发效率。
+
+Go、Kotlin等语言所支持的协程，比起Java的线程池更适合高并发。
+
+
+
+
 
 ThreadPoolExecutor的使用很简单，前面的代码也写过例子了。通过execute(Runnable command)方法来发起一个任务的执行，通过shutDown()方法来对已经提交的任务做一个有效的关闭。 
 
@@ -2766,6 +2855,81 @@ ThreadPoolExecutor刚new出来的时候，没有往里面execute任务,这个时
 答:是10. 核心线程就是启动了就会阻塞在那里不会退出。基本大小也就是线程的目标大小。  
 
 
+
+### keepAliveTime
+
+**只有当线程池中的线程数大于corePoolSize时，这个参数才会起作用**。当线程数大于corePoolSize时，超过corePoolSize部分的多余的空闲线程等待新任务的最长时间 ，如果超过，会销毁。 
+
+keepAliveTime是线程池中空闲线程等待工作的超时时间。当线程池中线程数量大于corePoolSize（核心线程数量）或设置了allowCoreThreadTimeOut（是否允许空闲核心线程超时）时，线程会根据keepAliveTime的值进行活性检查，一旦超时便销毁线程。否则，线程会永远等待新的工作。
+
+### unit
+
+keepAliveTime时间单位
+
+### workQueue
+
+workQueue队列,存储还没来得及执行的任务。也就是排队策略。排队策略描述的是，当前线程大于corePoolSize时，线程以什么样的方式排队等待被运行。
+
+ task会被从 workQueue 里不断地取出来，再放到线程池里去执行  
+
+排队有三种策略：直接提交、有界队列、无界队列。
+
+#### 直接提交
+
+SynchronousQueue， 直接提交通常要求无界 maximumPoolSizes 以避免拒绝新提交的任务。当命令以超过队列所能处理的平均数连续到达时，此策略允许无界线程具有增长的可能性。
+
+`newCachedThreadPool()`   就用的SynchronousQueue,它的maximumPoolSizes就是`Integer.MAX_VALUE` 
+
+```java
+public static ExecutorService newCachedThreadPool() {
+    return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                  60L, TimeUnit.SECONDS,
+                                  new SynchronousQueue<Runnable>());
+}
+```
+
+
+
+#### 有界队列
+
+ArrayBlockingQueue 是一个有界缓存等待队列，可以指定缓存队列的大小，当正在执行的线程数等于corePoolSize时，多余的元素缓存在 ArrayBlockingQueue 队列中等待有空闲的线程时继续执行，当ArrayBlockingQueue已满时，加入ArrayBlockingQueue失败，会开启新的线程去执行，当线程数已经达到最大的maximumPoolSizes时，再有新的元素尝试加入ArrayBlockingQueue时会报错。 
+
+#### 无界队列
+
+不具有预定义容量的 LinkedBlockingQueue 。 将导致在所有corePoolSize 线程都忙时新任务在队列中等待。这样，队列也就不会满，因此，maximumPoolSize的值也就无效了。 当每个任务完全独立于其他任务，即任务执行互不影响时，适合于使用无界队列；例如，在 Web页服务器中。这种排队可用于处理瞬态突发请求，当命令以超过队列所能处理的平均数连续到达时，此策略允许无界线程具有增长的可能性。 
+
+ #### 互相优缺点
+
+但是个人认为，使用有界队列相比无界队列有三个缺点：
+
+1、使用有界队列，corePoolSize、maximumPoolSize两个参数势必要根据实际场景不断调整以求达到一个最佳，这势必给开发带来极大的麻烦，必须经过大量的性能测试。所以干脆就使用无界队列，任务永远添加到队列中，不会溢出，自然maximumPoolSize也没什么用了，只需要根据系统处理能力调整corePoolSize就可以了 
+
+2、防止业务突刺。尤其是在Web应用中，某些时候突然大量请求的到来都是很正常的。这时候使用无界队列，不管早晚，至少保证所有任务都能被处理到。但是使用有界队列呢？那些超出maximumPoolSize的任务直接被丢掉了，处理地慢还可以忍受，但是任务直接就不处理了，这似乎有些糟糕  
+
+3、不仅仅是 corePoolSize 和 maximumPoolSize 需要相互调整，有界队列的队列大小和maximumPoolSize也需要相互折衷，这也是一块比较难以控制和调整的方面   
+
+当然，最后还是那句话，就像Comparable 和 Comparator的对比、synchronized和ReentrantLock，再到这里的无界队列和有界队列的对比，看似都有一个的优点稍微突出一些，但是这绝不是鼓励大家使用一个而不使用另一个，任何东西都需要根据实际情况来，当然在一开始的时候可以重点考虑那些看上去优点明显一点的  
+
+
+
+### threadFactory
+
+执行程序创建新线程时使用的工厂
+
+### handler
+
+拒绝策略(饱和策略), 由于超出corePoolSize和队列容量而使执行被阻塞时所使用的处理程序
+
+**当线程池的任务缓存队列已满并且线程池中的线程数目达到maximumPoolSize时，如果还有任务到来就会采取任务拒绝策略** 
+
+通常有以下四种策略：
+ThreadPoolExecutor.AbortPolicy: **丢弃**任务并抛出RejectedExecutionException**异常**。   (默认策略)
+
+ThreadPoolExecutor.DiscardPolicy：**丢弃任务，但是不抛出异常**。 
+
+ThreadPoolExecutor.DiscardOldestPolicy： **丢弃队列最前面的任务**，然后重新提交被拒绝的任务  
+
+ThreadPoolExecutor.CallerRunsPolicy：**由调用线程（提交任务的线程）处理该任务**  
 
 
 
@@ -2790,9 +2954,9 @@ public static ExecutorService newSingleThreadExecutor() {
 }
 ```
 
-单线程线程池，那么线程池中运行的线程数肯定是1。workQueue选择了无界的LinkedBlockingQueue，那么不管来多少任务都排队，前面一个任务执行完毕，再执行队列中的线程。从这个角度讲，第二个参数maximumPoolSize是没有意义的，因为maximumPoolSize描述的是排队的任务多过workQueue的容量，线程池中最多只能容纳maximumPoolSize个任务，现在workQueue是无界的，也就是说排队的任务永远不会多过workQueue的容量，那maximum其实设置多少都无所谓了 
+单线程线程池，那么线程池中运行的线程数肯定是1。 workQueue选择了无界的LinkedBlockingQueue，那么不管来多少任务都排队，前面一个任务执行完毕，再执行队列中的线程。从这个角度讲，第二个参数maximumPoolSize是没有意义的，因为maximumPoolSize描述的是排队的任务多过workQueue的容量，线程池中最多只能容纳maximumPoolSize个任务，现在workQueue是无界的，也就是说排队的任务永远不会多过workQueue的容量，那maximum其实设置多少都无所谓了 
 
-### newFixedThreadPool(int nThreads) 
+### newFixedThreadPool(int nThreads)  
 
 固定大小线程池
 
@@ -2819,22 +2983,6 @@ public static ExecutorService newCachedThreadPool() {
 ```
 
 无界线程池，意思是不管多少任务提交进来，都直接运行。无界线程池采用了SynchronousQueue，采用这个线程池就没有workQueue容量一说了，只要添加进去的线程就会被拿去用。既然是无界线程池，那线程数肯定没上限，所以maximumPoolSize为主了，设置为一个近似的无限大Integer.MAX_VALUE。 另外注意一下，单线程线程池和固定大小线程池线程都不会进行自动回收的，也即是说保证提交进来的任务最终都会被处理，但至于什么时候处理，就要看处理能力了。**但是无界线程池是设置了回收时间的，由于corePoolSize为0，所以只要60秒没有被用到的工作线程都会被直接移除**  
-
-## 谈谈workQueue
-
-上面三种线程池都提到了一个概念，workQueue，也就是排队策略。排队策略描述的是，当前线程大于corePoolSize时，线程以什么样的方式排队等待被运行。
-
-排队有三种策略：直接提交、有界队列、无界队列。
-
-谈谈后两种，JDK使用了无界队列LinkedBlockingQueue作为WorkQueue而不是有界队列ArrayBlockingQueue，尽管后者可以对资源进行控制，但是个人认为，使用有界队列相比无界队列有三个缺点：
-
-1、使用有界队列，corePoolSize、maximumPoolSize两个参数势必要根据实际场景不断调整以求达到一个最佳，这势必给开发带来极大的麻烦，必须经过大量的性能测试。所以干脆就使用无界队列，任务永远添加到队列中，不会溢出，自然maximumPoolSize也没什么用了，只需要根据系统处理能力调整corePoolSize就可以了
-
-2、防止业务突刺。尤其是在Web应用中，某些时候突然大量请求的到来都是很正常的。这时候使用无界队列，不管早晚，至少保证所有任务都能被处理到。但是使用有界队列呢？那些超出maximumPoolSize的任务直接被丢掉了，处理地慢还可以忍受，但是任务直接就不处理了，这似乎有些糟糕
-
-3、不仅仅是corePoolSize和maximumPoolSize需要相互调整，有界队列的队列大小和maximumPoolSize也需要相互折衷，这也是一块比较难以控制和调整的方面
-
-当然，最后还是那句话，就像Comparable和Comparator的对比、synchronized和ReentrantLock，再到这里的无界队列和有界队列的对比，看似都有一个的优点稍微突出一些，但是这绝不是鼓励大家使用一个而不使用另一个，任何东西都需要根据实际情况来，当然在一开始的时候可以重点考虑那些看上去优点明显一点的
 
 
 
@@ -3284,3 +3432,5 @@ public class CallableThread implements Callable<String> {
 # 参考
 
 https://www.cnblogs.com/qifengshi/p/6354890.html
+
+https://www.zhihu.com/question/412004413/answer/1384852425
