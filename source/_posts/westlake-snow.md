@@ -62,7 +62,11 @@ tags: tour
 
 
 
-<video src = video.mp4></video>
+<video controls="controls" autoplay loop muted>
+<source src="video.mp4" type="video/mp4" />
+您的浏览器不支持 video 标签。
+</video>
+
 
 
 
