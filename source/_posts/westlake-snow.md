@@ -1,5 +1,5 @@
 ---
-title: '西湖赏雪'
+title: '壬寅年正月初七西湖赏雪'
 date: 2022-02-10 21:21:51
 tags: tour
 ---
@@ -27,6 +27,8 @@ tags: tour
 ```
 
 
+
+以下照片由我的相机拍摄：     
 
 ![](1.jpeg) 
 
@@ -61,6 +63,7 @@ tags: tour
 ![](4.jpeg) 
 
 
+以下视频来自[B站](https://www.bilibili.com/video/BV1S3411j7We?p=1)：   
 
 <video controls="controls" autoplay loop muted>
 <source src="video.mp4" type="video/mp4" />
