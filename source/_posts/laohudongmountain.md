@@ -2,6 +2,7 @@
 title: 雨爬老虎洞山
 date: 2022-06-11 09:29:08
 tags: tour
+thumbnail: /img/custom-bg/laohudongshan.jpg
 ---
 
 

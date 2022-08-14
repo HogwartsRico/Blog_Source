@@ -2,6 +2,7 @@
 title: 大雾尖日出 
 date: 2022-07-23 09:10:05
 tags: tour
+thumbnail: /img/custom-bg/dawujiansunrise.jpg
 ---
 
 # 缘起

@@ -2,6 +2,7 @@
 title: '早春三月爬狮峰山'
 date: 2022-03-14 23:14:04
 tags: tour
+thumbnail: /img/custom-bg/shifen.png
 ---
 
 # 缘起

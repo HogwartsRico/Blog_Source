@@ -2,6 +2,7 @@
 title: 百丈岭徒步
 date: 2022-02-20 23:19:16
 tags: tour
+thumbnail: /img/custom-bg/baizhanglin.jpg
 ---
 
 

@@ -2,6 +2,7 @@
 title: '壬寅年正月初七西湖赏雪'
 date: 2022-02-10 21:21:51
 tags: tour
+thumbnail: /img/custom-bg/westlakesnow.png
 ---
 
 
