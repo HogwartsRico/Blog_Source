@@ -53,7 +53,7 @@ reading:
 
 # Thumbnail Settings
 thumbnail:
-    purecolor:
+    purecolor: "#F5F5F5"
     random_amount: 15
 
 # Background Settings
