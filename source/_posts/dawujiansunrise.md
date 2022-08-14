@@ -33,14 +33,14 @@ tags: tour
 
 
 <video width="800" height="500" controls="controls">
-    <source src="video.MP4" type="video/mp4">
+    <source src="video.mp4" type="video/mp4">
 </video>
 
 然后就赶忙架起三脚架，准备拍日出的延时： 
 
 
 <video width="800" height="500" controls="controls">
-    <source src="sunrise.MP4" type="video/mp4">
+    <source src="sunrise.mp4" type="video/mp4">
 </video>
 
 
