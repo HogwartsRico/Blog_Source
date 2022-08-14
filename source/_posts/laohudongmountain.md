@@ -57,7 +57,7 @@ tags: tour
 
 
 <video width="800" height="500" controls="controls">
-    <source src="video1.mp4" type="video/mp4">
+    <source src="video1.MP4" type="video/mp4">
 </video>
 
 
