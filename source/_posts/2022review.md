@@ -43,7 +43,6 @@ thumbnail: /img/custom-bg/ricosunrise.png
 # 今年攒的装备
 
 * 大疆如影稳定器（1代） 闲鱼二手入
-* 北狐升降桌
 
 
 
@@ -75,4 +74,4 @@ thumbnail: /img/custom-bg/ricosunrise.png
 
 
 
-原永远保持热爱，向阳而生！
+愿永远保持热爱，向阳而生！
