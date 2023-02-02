@@ -17,7 +17,7 @@ thumbnail: /img/custom-bg/ricosunrise.png
 
 # 今年的出行 
 
-* 太子尖露营 
+* [太子尖露营](https://hogwartsrico.github.io/2022/08/06/CampingOnTaiZiJian/) 
 * [百丈岭徒步](https://hogwartsrico.github.io/2022/02/20/baizhangling-mountain-climbing/)  
 * [大雾尖](https://hogwartsrico.github.io/2022/07/23/dawujiansunrise/)  
 * 鲁迅故里，书圣故里
