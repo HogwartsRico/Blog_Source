@@ -2,7 +2,7 @@
 title: 乌镇2日游
 date: 2023-03-05 21:49:47
 tags: tour
-thumbnail: /img/custom-bg/taizijiancamping.jpg
+thumbnail: /img/custom-bg/wuzhen.jpg
 ---
 
 
@@ -22,3 +22,17 @@ thumbnail: /img/custom-bg/taizijiancamping.jpg
 下午，我们继续游览了小镇，欣赏了粉墙黛瓦、小桥流水、人家景象，仿佛置身于诗画世界。随着夜幕降临，我们来到了乌镇夜景最美的地方，看到了灯火璀璨的街道和闪耀在江面上的星星点点的灯光，这样美丽的夜景让我们倍感浪漫和温馨。
 
 总体来说，这次乌镇一日游让我们领略了江南水乡的柔美，感受了浓郁的文化气息和乡村风情。这是一个难忘的旅行，我们希望以后还能有机会再次造访这个美丽的小镇。
+
+
+
+![](1.jpg)  
+
+
+
+![](2.jpg)
+
+![](3.jpg)
+
+
+
+![](4.jpg)
