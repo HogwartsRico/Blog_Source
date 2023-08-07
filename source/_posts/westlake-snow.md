@@ -60,13 +60,6 @@ thumbnail: /img/custom-bg/westlakesnow.png
 ![](4.jpeg) 
 
 
-以下视频来自[B站](https://www.bilibili.com/video/BV1S3411j7We?p=1)：   
-
-<video controls="controls" autoplay loop muted>
-<source src="video.mp4" type="video/mp4" />
-您的浏览器不支持 video 标签。
-</video>
-
 
 
 
