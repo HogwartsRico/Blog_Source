@@ -35,15 +35,11 @@ thumbnail: /img/custom-bg/westlakesnow.png
 
 
 
-![](2.jpeg) 
-
 
 
 ![](3.jpeg) 
 
 
-
-![](6.jpeg) 
 
 
 
