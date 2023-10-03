@@ -1,9 +1,5 @@
 <head>
     <meta charset="utf-8">
-    <!--
-        © Material Theme
-        https://github.com/viosey/hexo-theme-material
-        Version: 1.5.6 -->
     <script>
         window.materialVersion = "1.5.6"
         // Delete localstorage with these tags
@@ -18,6 +14,15 @@
         ]
     </script>
 
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-KR9KQDPLNN"></script>
+	<script>
+	  window.dataLayer = window.dataLayer || [];
+	  function gtag(){dataLayer.push(arguments);}
+	  gtag('js', new Date());
+
+	  gtag('config', 'G-KR9KQDPLNN');
+	</script>
     <!-- dns prefetch -->
     <%- partial('_widget/dnsprefetch') %>
 
