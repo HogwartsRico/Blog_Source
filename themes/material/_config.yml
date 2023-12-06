@@ -215,6 +215,10 @@ sidebar:
             link: "/about"
             icon: person
             divider: false
+        Photography:
+            link: "/photography"
+            icon: photo
+            divider: false    
     article_num:
         use: true
         divider: false
